@@ -2,9 +2,9 @@
 : -------------------------------
 : if resources exist, build them
 : -------------------------------
-if not exist rsrc.rc goto over1
-\masm32\BIN\Rc.exe /v rsrc.rc
-\masm32\BIN\Cvtres.exe /machine:ix86 rsrc.res
+if not exist SokobanRes.rc goto over1
+\masm32\BIN\Rc.exe /v SokobanRes.rc
+\masm32\BIN\Cvtres.exe /machine:ix86 SokobanRes.res
 :over1
 
 if exist %1.obj del Sokoban.obj
@@ -16,12 +16,12 @@ if exist %1.exe del Sokoban.exe
 \masm32\BIN\Ml.exe /c /coff /Zi /Fl Sokoban.asm
 if errorlevel 1 goto errasm
 
-if not exist rsrc.obj goto nores
+if not exist SokobanRes.obj goto nores
 
 : --------------------------------------------------
 : link the main OBJ file with the resource OBJ file
 : --------------------------------------------------
-\masm32\BIN\Link.exe /SUBSYSTEM:WINDOWS Sokoban.obj rsrc.obj
+\masm32\BIN\Link.exe /SUBSYSTEM:WINDOWS Sokoban.obj SokobanRes.obj
 if errorlevel 1 goto errlink
 dir Sokoban.*
 goto TheEnd
@@ -31,7 +31,6 @@ goto TheEnd
 : link the main OBJ file
 : -----------------------
 \masm32\BIN\Link.exe /SUBSYSTEM:WINDOWS Sokoban.obj
-@REM \masm32\BIN\Link.exe /SUBSYSTEM:CONSOLE Sokoban.obj
 if errorlevel 1 goto errlink
 dir Sokoban.*
 goto TheEnd
