@@ -84,12 +84,14 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
     LOCAL hdc:HDC,  hdcBuffer:HDC, hbmBuffer:HBITMAP, hdcMem:HDC
     LOCAL row:DWORD, col:DWORD
     LOCAL drawPosX:DWORD, drawPosY:DWORD
-
+    LOCAL dwRop:DWORD
+    
     .IF uMsg==WM_DESTROY
         invoke PostQuitMessage,NULL
 
     .ELSEIF uMsg==WM_CREATE
         call LoadBitmapHandlers
+        invoke  ResetGame,currnetLevel
         invoke  UpdateWindow,hWndd
 
     .ELSEIF uMsg==WM_PAINT
@@ -108,7 +110,11 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         invoke  SelectObject,hdcBuffer,hbmBuffer
         ; mov     hbmOldBuffer,eax
 
-        
+        ; MAKEROP4 
+        mov dwRop, SRCCOPY ; high-order-backgroud-1-black
+        shl dwRop,8
+        and dwRop,0FF000000h
+        or dwRop, SRCAND ; low-order-foreground-0-white
 
         mov ecx, 8
         mov drawPosY,0
@@ -124,13 +130,7 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         
         mov al,[bSokobanStates+esi*8+edi]
 
-        .IF edi == cCharPosX && esi == cCharPosY
-            ; Draw Charactor
-            invoke  SelectObject,hdcMem,hbmChar
-            invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
-                    0,0,SRCCOPY
-
-        .ELSEIF al == 0
+        .IF al == 0
             ; Draw Floor
             invoke  SelectObject,hdcMem,hbmFloor
             invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
@@ -152,10 +152,23 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             ; Draw Spike
             invoke  SelectObject,hdcMem,hbmSpike
             invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
-                    0,0,SRCCOPY
+                    0,0,SRCPAINT
         .ELSEIF al == 4
             ; Draw Enemy
+            ; invoke  SelectObject,hdcMem,hbmEnemy
+            ; invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
+            ;         0,0,SRCCOPY
+            invoke  SelectObject,hdcMem,hbmFloor
+            invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
+                    0,0,SRCCOPY
             invoke  SelectObject,hdcMem,hbmEnemy
+            invoke MaskBlt,hdcBuffer,drawPosX,drawPosY,32,32,
+                        hdcMem,0,0,
+                        hbmEnemyMask,0,0,
+                        dwRop
+        .ELSEIF al == 5
+            ; Draw Stair
+            invoke  SelectObject,hdcMem,hbmStair
             invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
                     0,0,SRCCOPY
         .ELSE
@@ -164,6 +177,16 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             ; invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
             ;         0,0,SRCCOPY
         .endif
+        
+        .IF edi == cCharPosX && esi == cCharPosY
+            ; Draw Charactor
+            invoke  SelectObject,hdcMem,hbmChar
+            invoke MaskBlt,hdcBuffer,drawPosX,drawPosY,32,32,
+                        hdcMem,0,0,
+                        hbmCharMask,0,0,
+                        dwRop
+        .ENDIF
+
         inc edi
         add drawPosX,32
 
@@ -195,32 +218,47 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             .IF bSokobanStates[esi-8] == 0
                 dec cCharPosY
             .ELSE
-                invoke ProcessMoveLogic,esi,-8
+                invoke ProcessMoveLogic,-8
             .ENDIF
         .ELSEIF wParam==VK_DOWN
             .IF bSokobanStates[esi+8] == 0
                 inc cCharPosY
             .ELSE
-                invoke ProcessMoveLogic,esi,8
+                invoke ProcessMoveLogic,8
             .ENDIF
         .ELSEIF wParam==VK_LEFT
             .IF bSokobanStates[esi-1] == 0
                 dec cCharPosX
             .ELSE
-                invoke ProcessMoveLogic,esi,-1
+                invoke ProcessMoveLogic,-1
             .ENDIF
         .ELSEIF wParam==VK_RIGHT
             .IF bSokobanStates[esi+1] == 0
                 inc cCharPosX
             .ELSE
-                invoke ProcessMoveLogic,esi,1
+                invoke ProcessMoveLogic,1
             .ENDIF
+        .ELSEIF wParam==52h
+            invoke ResetGame,currnetLevel
         .ENDIF
         ; If both parameters are NULL, the entire client area is added to the update region.
         ; invoke RedrawWindow,hWndd, 0, 0, RDW_INVALIDATE or RDW_UPDATENOW
         invoke  InvalidateRect,hWndd,ADDR redrawRange,1
         invoke  UpdateWindow,hWndd
         
+    .ELSEIF uMsg==WM_TIMER
+        ; .if switchh==1
+        ;     mov ecx,beenwritten
+        ;     .if ecx<=wordout
+        ;         invoke  InvalidateRect,hWnd,ADDR wordspace,1
+        ;         invoke  DrawStr,offset buffer,hWnd
+        ;         inc beenwritten
+        ;     .else
+        ;         mov switchh,0
+        ;         mov beenwritten,1
+        ;     .endif
+        ; .endif
+
     .ELSEIF uMsg==WM_COMMAND
         mov eax,wParam
         .IF lParam==0
@@ -247,6 +285,10 @@ LoadBitmapHandlers PROC
         LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
     mov hbmChar,eax
 
+    invoke  LoadImage,hInstance,ADDR bmpCharMaskName,IMAGE_BITMAP,0,0,
+        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+    mov hbmCharMask,eax
+
     invoke  LoadImage,hInstance,ADDR bmpFloorName,IMAGE_BITMAP,0,0,
         LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
     mov hbmFloor,eax
@@ -267,24 +309,52 @@ LoadBitmapHandlers PROC
         LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
     mov hbmEnemy,eax
 
+    invoke  LoadImage,hInstance,ADDR bmpEnemyMaskName,IMAGE_BITMAP,0,0,
+        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+    mov hbmEnemyMask,eax
+
+    invoke  LoadImage,hInstance,ADDR bmpStairName,IMAGE_BITMAP,0,0,
+        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+    mov hbmStair,eax
+
     ret
 LoadBitmapHandlers ENDP
 
-ProcessMoveLogic PROC USES esi eax,
-    indexSource:DWORD,
+ProcessMoveLogic PROC USES eax,
     indexOffset:DWORD
-    mov esi,indexSource
     mov eax,indexOffset
     add esi,eax
     .IF bSokobanStates[esi] == 2
-        .IF bSokobanStates[esi+eax] == 0
+        ; Barrel
+        .IF bSokobanStates[esi+eax] == 0 ; If movable
             mov bSokobanStates[esi],0
             mov bSokobanStates[esi+eax],2
         .ENDIF
     .ELSEIF bSokobanStates[esi] == 4
+        ; Kill Enemy
         mov bSokobanStates[esi],0
+    .ELSEIF bSokobanStates[esi] == 5
+        ; Next Level
     .ENDIF
+
     ret
 ProcessMoveLogic ENDP
+
+ResetGame PROC USES eax ecx,
+    level:DWORD
+    ; Reset Charactor
+    mov cCharPosX,6
+    mov cCharPosY,1
+    ; Reset tiles
+    xor ecx,ecx
+CopyLoop:
+    mov al,bLevelStates1[ecx]
+    mov bSokobanStates[ecx],al
+    inc ecx
+    cmp ecx,TOTAL_COLS*TOTAL_ROWS+1
+    jnz CopyLoop
+
+    ret
+ResetGame ENDP
 
 END Main
