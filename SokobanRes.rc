@@ -1,13 +1,22 @@
 #include "\masm32\INCLUDE\Resource.h"
 
+bmpIcon     ICON   resources\ICON.ico
+
 /*Unique name or a 16-bit unsigned integer value identifying the resource.*/
 bmpChar     BITMAP resources\Character.bmp
 bmpCharMask BITMAP resources\CharacterMask.bmp
 bmpBox      BITMAP resources\Box.bmp
 bmpWall     BITMAP resources\Wall.bmp
 bmpSpike    BITMAP resources\Spike.bmp
-bmpEnemy    BITMAP resources\Enemy.bmp
-bmpEnemyMask    BITMAP resources\EnemyMask.bmp
+bmpSpikeBox    BITMAP resources\SpikeBox.bmp
+bmpEnemy0   BITMAP resources\Enemy0.bmp
+bmpEnemy1   BITMAP resources\Enemy1.bmp
+bmpEnemy2   BITMAP resources\Enemy2.bmp
+bmpEnemy3   BITMAP resources\Enemy3.bmp
+bmpEnemy4   BITMAP resources\Enemy4.bmp
+bmpEnemy5   BITMAP resources\Enemy5.bmp
+bmpEnemyMask0    BITMAP resources\EnemyMask0.bmp
+bmpEnemyMask1    BITMAP resources\EnemyMask1.bmp
 bmpFloor    BITMAP resources\Floor.bmp
 bmpStair    BITMAP resources\Stair.bmp
 
