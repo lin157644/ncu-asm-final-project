@@ -81,7 +81,7 @@ Main ENDP
 
 WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
     LOCAL paintStruct:PAINTSTRUCT
-    LOCAL hdc:HDC,  hdcMem:HDC
+    LOCAL hdc:HDC,  hdcBuffer:HDC, hbmBuffer:HBITMAP, hdcMem:HDC
     LOCAL row:DWORD, col:DWORD
     LOCAL drawPosX:DWORD, drawPosY:DWORD
 
@@ -89,76 +89,132 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         invoke PostQuitMessage,NULL
 
     .ELSEIF uMsg==WM_CREATE
-        ; invoke  LoadBitmap,hInstance,ADDR bmpBoxName
-        invoke  LoadImage,hInstance,ADDR bmpBoxName,IMAGE_BITMAP,0,0,
-           LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
-        mov hBitmap,eax
-        invoke  LoadImage,hInstance,ADDR bmpCharName,IMAGE_BITMAP,0,0,
-           LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
-        mov hCharBitmap,eax
+        call LoadBitmapHandlers
         invoke  UpdateWindow,hWndd
 
     .ELSEIF uMsg==WM_PAINT
         invoke  BeginPaint,hWndd,ADDR paintStruct
-        mov hdc,eax ; the destination device context
-        ; Bitmaps can only be selected into memory DC's. A single bitmap cannot be selected into more than one DC at the same time.
-        invoke  CreateCompatibleDC,eax ;turns into a memory DC
+        mov hdc,eax ; The destination device context
+        ; Bitmaps can only be selected into memory DC's.
+        ; A single bitmap cannot be selected into more than one DC at the same time.
+        invoke  CreateCompatibleDC,hdc ; A memory DC for Buffer
+        mov     hdcBuffer,eax
+        invoke  CreateCompatibleDC,hdc ; A memory DC for Bitmap
         mov     hdcMem,eax
-        ; invoke  BitBlt,hdc,0,0,WndWidth,WndHeight,hdcMem,
-        ;         0,0,SRCCOPY
+        
+        invoke  CreateCompatibleBitmap,hdc,512,512
+        mov     hbmBuffer,eax
+        
+        invoke  SelectObject,hdcBuffer,hbmBuffer
+        ; mov     hbmOldBuffer,eax
+
+        
 
         mov ecx, 8
-        mov row,0
         mov drawPosY,0
-        mov edi,0
+        xor esi,esi
     DrawRow:   
         push ecx
         mov ecx, 8
-        mov col,0
+        xor edi,edi
         mov drawPosX, 0
 
     DrawCol:
         push ecx
-        mov eax,col
-        mov ebx,row
-        .IF  ebx == cCharPosY && eax == cCharPosX
+        
+        mov al,[bSokobanStates+esi*8+edi]
+
+        .IF edi == cCharPosX && esi == cCharPosY
+            ; Draw Charactor
+            invoke  SelectObject,hdcMem,hbmChar
+            invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
+                    0,0,SRCCOPY
+
+        .ELSEIF al == 0
+            ; Draw Floor
+            invoke  SelectObject,hdcMem,hbmFloor
+            invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
+                    0,0,SRCCOPY
+
+        .ELSEIF al == 1
+            ; Draw Wall
+            invoke  SelectObject,hdcMem,hbmWall
+            invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
+                    0,0,SRCCOPY
+            
+        .ELSEIF al == 2
             ; Draw Box
-            invoke  SelectObject,hdcMem,hCharBitmap
-            invoke  BitBlt,hdc,drawPosX,drawPosY,32,32,hdcMem,
+            invoke  SelectObject,hdcMem,hbmBox
+            invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
+                    0,0,SRCCOPY
+
+        .ELSEIF al == 3
+            ; Draw Spike
+            invoke  SelectObject,hdcMem,hbmSpike
+            invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
+                    0,0,SRCCOPY
+        .ELSEIF al == 4
+            ; Draw Enemy
+            invoke  SelectObject,hdcMem,hbmEnemy
+            invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
                     0,0,SRCCOPY
         .ELSE
-            ; Draw Character
-            invoke  SelectObject,hdcMem,hBitmap
-            invoke  BitBlt,hdc,drawPosX,drawPosY,32,32,hdcMem,
-                    0,0,SRCCOPY
+            ; Draw Void
+            ; invoke  SelectObject,hdcMem,hbmBox
+            ; invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
+            ;         0,0,SRCCOPY
         .endif
         inc edi
-        inc col
         add drawPosX,32
 
         pop ecx
         dec ecx
         jnz DrawCol
 
-        inc row
+        inc esi
         add drawPosY,32
 
         pop ecx
         dec ecx
         jnz DrawRow
 
+        ; Buffer to window
+        invoke  BitBlt,hdc,0,0,512,512,hdcBuffer,
+                    0,0,SRCCOPY
+
         invoke  DeleteDC,hdcMem
+        invoke  DeleteDC,hdcBuffer
         invoke  EndPaint,hWndd,ADDR paintStruct
 
     .ELSEIF uMsg==WM_KEYUP
+        mov esi,cCharPosY
+        shl esi,3
+        add esi,cCharPosX
+
         .IF wParam==VK_UP
-            dec cCharPosY
+            .IF bSokobanStates[esi-8] == 0
+                dec cCharPosY
+            .ELSE
+                invoke ProcessMoveLogic,esi,-8
+            .ENDIF
         .ELSEIF wParam==VK_DOWN
-            inc cCharPosY
+            .IF bSokobanStates[esi+8] == 0
+                inc cCharPosY
+            .ELSE
+                invoke ProcessMoveLogic,esi,8
+            .ENDIF
         .ELSEIF wParam==VK_LEFT
-            dec cCharPosX
+            .IF bSokobanStates[esi-1] == 0
+                dec cCharPosX
+            .ELSE
+                invoke ProcessMoveLogic,esi,-1
+            .ENDIF
         .ELSEIF wParam==VK_RIGHT
-            inc cCharPosX
+            .IF bSokobanStates[esi+1] == 0
+                inc cCharPosX
+            .ELSE
+                invoke ProcessMoveLogic,esi,1
+            .ENDIF
         .ENDIF
         ; If both parameters are NULL, the entire client area is added to the update region.
         ; invoke RedrawWindow,hWndd, 0, 0, RDW_INVALIDATE or RDW_UPDATENOW
@@ -184,5 +240,51 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
     xor eax,eax
     ret
 WndProc ENDP
+
+LoadBitmapHandlers PROC
+
+    invoke  LoadImage,hInstance,ADDR bmpCharName,IMAGE_BITMAP,0,0,
+        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+    mov hbmChar,eax
+
+    invoke  LoadImage,hInstance,ADDR bmpFloorName,IMAGE_BITMAP,0,0,
+        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+    mov hbmFloor,eax
+
+    invoke  LoadImage,hInstance,ADDR bmpWallName,IMAGE_BITMAP,0,0,
+        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+    mov hbmWall,eax
+
+    invoke  LoadImage,hInstance,ADDR bmpBoxName,IMAGE_BITMAP,0,0,
+        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+    mov hbmBox,eax
+
+    invoke  LoadImage,hInstance,ADDR bmpSpikeName,IMAGE_BITMAP,0,0,
+        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+    mov hbmSpike,eax
+
+    invoke  LoadImage,hInstance,ADDR bmpEnemyName,IMAGE_BITMAP,0,0,
+        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+    mov hbmEnemy,eax
+
+    ret
+LoadBitmapHandlers ENDP
+
+ProcessMoveLogic PROC USES esi eax,
+    indexSource:DWORD,
+    indexOffset:DWORD
+    mov esi,indexSource
+    mov eax,indexOffset
+    add esi,eax
+    .IF bSokobanStates[esi] == 2
+        .IF bSokobanStates[esi+eax] == 0
+            mov bSokobanStates[esi],0
+            mov bSokobanStates[esi+eax],2
+        .ENDIF
+    .ELSEIF bSokobanStates[esi] == 4
+        mov bSokobanStates[esi],0
+    .ENDIF
+    ret
+ProcessMoveLogic ENDP
 
 END Main

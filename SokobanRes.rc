@@ -3,6 +3,10 @@
 /*Unique name or a 16-bit unsigned integer value identifying the resource.*/
 bmpBox BITMAP resources\Box.bmp
 bmpChar BITMAP resources\Character.bmp
+bmpWall BITMAP resources\Wall.bmp
+bmpSpike BITMAP resources\Spike.bmp
+bmpEnemy BITMAP resources\Enemy.bmp
+bmpFloor BITMAP resources\Floor.bmp
 
 /*
 Unique 16-bit unsigned integer value identifying the resource.
