@@ -13,8 +13,9 @@ TOTAL_COLS  EQU 8
 TOTAL_ROWS  EQU 8
 TILE_WIDTH  EQU 32
 TILE_HEIGHT EQU 32
-WINDOW_WIDTH EQU 300
-WINDOW_HEIGHT EQU 300
+TEXT_HEIGHT EQU 20
+WINDOW_WIDTH EQU 256
+WINDOW_HEIGHT EQU TOTAL_ROWS*TILE_HEIGHT+TEXT_HEIGHT
 IDT_SPRITE_TIMER EQU 1
 
 m2m MACRO M1, M2
@@ -39,6 +40,7 @@ bmpEnemyName    BYTE    "bmpEnemy0",0
 bmpEnemyMaskName BYTE   "bmpEnemyMask0",0
 bmpFloorName    BYTE    "bmpFloor",0
 bmpStairName    BYTE    "bmpStair",0
+bmpIconName     BYTE    "bmpIcon",0
 hbmChar         HANDLE  ?
 hbmCharMask     HANDLE  ?
 hbmWall         HANDLE  ?
@@ -60,13 +62,16 @@ wndclass        WNDCLASSEX  <?>
 msg             MSG         <?>
 cCharPosX       DWORD   ?
 cCharPosY       DWORD   ?
+wndRect         RECT    <0,0,WINDOW_WIDTH,WINDOW_HEIGHT>
 redrawRange     RECT    <0,0,WINDOW_WIDTH,WINDOW_HEIGHT>
-maxMoves        SDWORD  23,24,32
-currnetMoves    SDWORD  3 dup(?)
-currnetMovesStr BYTE    "123",0
-currnetMovesRet RECT    <TOTAL_COLS*TILE_WIDTH,TOTAL_ROWS*TILE_HEIGHT,WINDOW_WIDTH,50>
+maxMoves        SDWORD  0,23,24,32
+currnetMoves    SDWORD  ?
+currnetMaxMoves SDWORD  ?
+currnetMovesStr BYTE    "Moves left: 00",0
+; currnetMovesRet RECT    <TOTAL_COLS*TILE_WIDTH,TOTAL_ROWS*TILE_HEIGHT,WINDOW_WIDTH,50>
 bSokobanStates  BYTE    TOTAL_COLS*TOTAL_ROWS dup(?)
 currnetLevel    DWORD   1
+currnetLevelStr BYTE    "Currnet level: 0",0
 ; 0:floor 1:wall 2:box 3:spike 4:enemy 5:stair 6:box&spike 7:door
 bLevelStates1   BYTE 1,1,1,1,1,1,1,1
                 BYTE 1,1,1,1,1,0,0,1

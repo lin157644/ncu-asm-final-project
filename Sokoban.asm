@@ -17,8 +17,8 @@ Main PROC
     mov wndclass.cbClsExtra,    0
     mov wndclass.cbWndExtra,    0
     m2m wndclass.hInstance,     hInstance           ; push pop macro
-    ; invoke LoadIcon,hInstance,500                 ; No ICON yet...
-    mov wndclass.hIcon,         0
+    invoke LoadIcon,hInstance,ADDR bmpIconName    ; No ICON yet...
+    mov wndclass.hIcon,         eax
     invoke LoadCursor,          NULL,IDC_ARROW
     mov wndclass.hCursor,       eax
     m2m wndclass.hbrBackground, COLOR_BTNFACE+1
@@ -29,13 +29,25 @@ Main PROC
     invoke RegisterClassEx, ADDR wndclass
 
     ; Create the main window with an extended window style
-
-    invoke CreateWindowEx,
+    invoke  AdjustWindowRect,ADDR wndRect,WS_CAPTION or WS_SYSMENU or WS_VISIBLE,0
+    mov eax,wndRect.right
+    mov ebx,wndRect.left
+    neg ebx
+    add wndRect.right,ebx
+    
+    mov eax,wndRect.bottom
+    mov ebx,wndRect.top
+    neg ebx
+    add wndRect.bottom,ebx
+    ; Ex might not needed
+    invoke  CreateWindowEx,
         WS_EX_LEFT or WS_EX_ACCEPTFILES,; dwExStyle
         ADDR szClassName,               ; lpClassName
         ADDR szDisplayName,             ; lpWindowName
         WS_OVERLAPPEDWINDOW,            ; dwStyle
-        WndX,WndY,WndWidth,WndHeight,   ; Initial position and size
+        0,0,
+        272,
+        315,     ; Initial position and size
         0,0,                            ; hWndParent hMenu
         hInstance,0                     ; hInstance lpParam
     mov hWnd,eax                        ; save the handle to hWnd
@@ -208,8 +220,25 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         jnz DrawRow
 
         ; Draw move left text
-        ; invoke TextOut hdcBuffer, TOTAL_COLS*TILE_WIDTH, TOTAL_ROWS*TILE_HEIGHT,
-        invoke DrawText,hdc,ADDR currnetMovesStr,-1,ADDR currnetMovesRet, DT_WORDBREAK or DT_LEFT
+        mov bl,10
+        mov eax,currnetMoves
+        idiv bl
+        .IF al == 0
+            mov currnetMovesStr[12],20h
+        .ELSE
+            add al,30h
+            mov currnetMovesStr[12],al
+        .ENDIF
+        add ah,30h
+        mov currnetMovesStr[13],ah
+        mov  eax,currnetLevel
+        mov  currnetLevelStr[LENGTHOF currnetMovesStr],al
+        add  currnetLevelStr[LENGTHOF currnetMovesStr], 30h
+        invoke  SetTextColor,hdcBuffer,0ffffffh
+        invoke  SetBkColor,hdcBuffer,0
+        invoke  TextOut,hdcBuffer,0,TOTAL_ROWS*TILE_HEIGHT,ADDR currnetLevelStr,LENGTHOF currnetLevelStr-1
+        invoke  TextOut,hdcBuffer,TOTAL_COLS*TILE_WIDTH/2,TOTAL_ROWS*TILE_HEIGHT,ADDR currnetMovesStr,LENGTHOF currnetMovesStr-1
+        ; invoke DrawText,hdc,ADDR currnetMovesStr,-1,ADDR currnetMovesRet, DT_WORDBREAK or DT_LEFT
 
         ; Buffer to window
         invoke  BitBlt,hdc,0,0,WINDOW_WIDTH,WINDOW_HEIGHT,hdcBuffer,
@@ -236,6 +265,10 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             invoke ProcessMoveLogic,1,1,0
         .ELSEIF wParam==52h
             invoke ResetGame,currnetLevel
+        .ELSEIF wParam==31h
+            invoke ResetGame,1
+        .ELSEIF wParam==32h
+            invoke ResetGame,2
         .ENDIF
         ; If both parameters are NULL, the entire client area is added to the update region.
         ; invoke RedrawWindow,hWndd, 0, 0, RDW_INVALIDATE or RDW_UPDATENOW
@@ -338,11 +371,6 @@ ProcessMoveLogic PROC USES eax,
         add cCharPosX,eax
         mov eax,yOffset
         add cCharPosY,eax
-        dec currnetMoves
-        .IF bSokobanStates[esi-8] == 3
-            ;Spike
-            dec currnetMoves
-        .ENDIF
     .ELSEIF bSokobanStates[esi] == 2
         ; Barrel
         .IF bSokobanStates[esi+eax] == 0; If movable
@@ -353,8 +381,13 @@ ProcessMoveLogic PROC USES eax,
             mov bSokobanStates[esi+eax],2
         .ENDIF
     .ELSEIF bSokobanStates[esi] == 4
-        ; Kill Enemy
-        mov bSokobanStates[esi],0
+        ; Move or Kill Enemy
+        .IF bSokobanStates[esi+eax] == 0
+            mov bSokobanStates[esi],0
+            mov bSokobanStates[esi+eax],4
+        .ELSEIF bSokobanStates[esi+eax] == 1 || bSokobanStates[esi+eax] == 3
+            mov bSokobanStates[esi],0
+        .ENDIF
     .ELSEIF bSokobanStates[esi] == 5
         ; Next Level
         inc currnetLevel
@@ -370,20 +403,33 @@ ProcessMoveLogic PROC USES eax,
             mov bSokobanStates[esi+eax],6
         .ENDIF
     .ENDIF
-
+    dec currnetMoves
+    ; take one move if on spike when end
+    .IF bSokobanStates[esi] == 3
+        ;Spike
+        dec currnetMoves
+    .ENDIF
+    .IF currnetMoves <= 0
+        invoke ResetGame,currnetLevel
+    .ENDIF
     ret
 ProcessMoveLogic ENDP
 
 ResetGame PROC USES eax ecx esi,
     level:DWORD
+    m2m currnetLevel,level
     ; Reset Charactor
     .IF level == 1
         mov cCharPosX,6
         mov cCharPosY,1
+        push [maxMoves+1*TYPE SDWORD] ; 4
+        pop currnetMoves
         mov esi,OFFSET bLevelStates1
     .ELSEIF level == 2
         mov cCharPosX,1
         mov cCharPosY,5
+        push [maxMoves+2*TYPE SDWORD] ; 8
+        pop currnetMoves
         mov esi,OFFSET bLevelStates2
     .ENDIF
     ; Reset tiles
@@ -392,7 +438,7 @@ CopyLoop:
     mov al,BYTE PTR [esi+ecx]
     mov bSokobanStates[ecx],al
     inc ecx
-    cmp ecx,TOTAL_COLS*TOTAL_ROWS+1
+    cmp ecx,TOTAL_COLS*TOTAL_ROWS
     jnz CopyLoop
 
     ret
