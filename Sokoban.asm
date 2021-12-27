@@ -100,7 +100,7 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
 
     .ELSEIF uMsg==WM_CREATE
         call LoadBitmapHandlers
-        invoke PlayAudio
+        invoke  PlayBGM
         invoke  ResetGame,currentLevel
         invoke  UpdateWindow,hWndd
 
@@ -302,10 +302,13 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             invoke ResetGame,currentLevel
         .ELSEIF wParam==31h
             invoke ResetGame,1
+            mov gameState,1
         .ELSEIF wParam==32h
             invoke ResetGame,2
+            mov gameState,1
         .ELSEIF wParam==33h
             invoke ResetGame,3
+            mov gameState,1
         .ELSEIF wParam==VK_SPACE && gameState==0
             mov gameState,1
         .ELSEIF wParam==VK_ESCAPE
@@ -471,6 +474,17 @@ ProcessMoveLogic PROC USES eax,
             mov bSokobanStates[esi],3
             mov bSokobanStates[esi+eax],6
         .ENDIF
+    .ELSEIF bSokobanStates[esi] == 7
+        mov eax,xOffset
+        add cCharPosX,eax
+        mov eax,yOffset
+        add cCharPosY,eax
+        mov hasKeyState,1
+        mov bSokobanStates[esi],0
+    .ELSEIF bSokobanStates[esi] == 8
+        .IF hasKeyState==1
+            mov bSokobanStates[esi],0
+        .ENDIF
     .ENDIF
     dec currentMoves
     ; take one move if on spike when end
@@ -486,6 +500,7 @@ ProcessMoveLogic ENDP
 
 ResetGame PROC USES eax ecx esi,
     level:DWORD
+    invoke KillTimer,hWnd,IDT_SPRITE_TIMER
     m2m currentLevel,level
     ; Reset Charactor
     .IF level == 1
@@ -526,7 +541,7 @@ CopyLoop:
     ret
 ResetGame ENDP
 
-PlayAudio PROC
+PlayBGM PROC
 	LOCAL mciOpenParms:MCI_OPEN_PARMS, mciPlayParms:MCI_PLAY_PARMS
 
 	mov eax, hWnd
@@ -547,6 +562,6 @@ PlayAudio PROC
 	invoke mciSendCommand, playerId, MCI_PLAY, MCI_NOTIFY, ADDR mciPlayParms
 
 	ret
-PlayAudio ENDP
+PlayBGM ENDP
 
 END Main

@@ -30,7 +30,7 @@ ENDM
 WndProc PROTO hWnd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
 ProcessMoveLogic PROTO, indexOffset:DWORD, xOffset:DWORD, yOffset:DWORD
 ResetGame PROTO, level:DWORD
-PlayAudio PROTO
+PlayBGM PROTO
 
 .data
 szClassName     BYTE    "Main_App_Class",0
@@ -74,7 +74,7 @@ cCharPosX       DWORD   ?
 cCharPosY       DWORD   ?
 wndRect         RECT    <0,0,WINDOW_WIDTH,WINDOW_HEIGHT>
 redrawRange     RECT    <0,0,WINDOW_WIDTH,WINDOW_HEIGHT>
-maxMoves        SDWORD  0,23,24,32
+maxMoves        SDWORD  0,23,24,29
 currentMoves    SDWORD  ?
 currentMaxMoves SDWORD  ?
 currentMovesStr BYTE    "Moves left: 00",0
@@ -89,6 +89,7 @@ pressSpaceRect  RECT    <0,100,WINDOW_WIDTH,WINDOW_HEIGHT>
 hFont           HFONT   ?
 ; Game state 0:menu 1:Show Level 2:Gaming 3:Win
 gameState       BYTE 0
+hasKeyState        BYTE 0
 ; 0:floor 1:wall 2:box 3:spike 4:enemy 5:stair 6:box&spike 7:key 8:door
 bLevelStates1   BYTE 1,1,1,1,1,1,1,1
                 BYTE 1,1,1,1,1,0,0,1
@@ -111,13 +112,13 @@ bLevelStates2   BYTE 1,1,1,1,1,1,1,1
 bLevelStates3   BYTE 1,1,1,1,1,1,5,1
                 BYTE 1,1,1,1,1,1,8,1
                 BYTE 1,1,0,3,3,0,0,1
-                BYTE 1,1,3,1,3,0,0,1
+                BYTE 1,1,3,1,3,1,0,1
                 BYTE 1,1,0,0,4,3,3,1
-                BYTE 1,1,3,0,3,0,0,1
+                BYTE 1,1,3,1,3,1,0,1
                 BYTE 1,7,0,0,0,4,0,1
                 BYTE 1,1,1,1,1,1,1,1
 
 playerId        DWORD 0
 playerType      BYTE  "MPEGVideo",0
-playerAlias     BYTE  "AudioPlayer", 0
-filePath        BYTE  "C:\test.mp3", 0 
+playerAlias     BYTE  "BGMPlayer", 0
+filePath        BYTE  "C:\bgmusic.mp3", 0 
