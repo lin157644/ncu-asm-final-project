@@ -16,8 +16,8 @@ Main PROC
     mov wndclass.lpfnWndProc,   OFFSET WndProc      ; 處理視窗事件的函式
     mov wndclass.cbClsExtra,    0
     mov wndclass.cbWndExtra,    0
-    m2m wndclass.hInstance,     hInstance           ; push pop macro
-    invoke LoadIcon,hInstance,ADDR bmpIconName    ; No ICON yet...
+    m2m wndclass.hInstance,     hInstance           ; m2m push pop macro
+    invoke LoadIcon,hInstance,ADDR bmpIconName
     mov wndclass.hIcon,         eax
     invoke LoadCursor,          NULL,IDC_ARROW
     mov wndclass.hCursor,       eax
@@ -34,7 +34,7 @@ Main PROC
     mov ebx,wndRect.left
     neg ebx
     add wndRect.right,ebx
-    
+
     mov eax,wndRect.bottom
     mov ebx,wndRect.top
     neg ebx
@@ -51,13 +51,6 @@ Main PROC
         0,0,                            ; hWndParent hMenu
         hInstance,0                     ; hInstance lpParam
     mov hWnd,eax                        ; save the handle to hWnd
-
-    ; invoke LoadMenu,hInstance,600
-    ; invoke SetMenu,hWnd,eax
-
-    ; Last param is for callback function.
-    ; We use wm_timer here.
-    invoke SetTimer,hWnd,IDT_SPRITE_TIMER,150,0
 
     invoke ShowWindow,hWnd, SW_SHOWNORMAL
     invoke UpdateWindow,hWnd
@@ -107,7 +100,8 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
 
     .ELSEIF uMsg==WM_CREATE
         call LoadBitmapHandlers
-        invoke  ResetGame,currnetLevel
+        invoke PlayAudio
+        invoke  ResetGame,currentLevel
         invoke  UpdateWindow,hWndd
 
     .ELSEIF uMsg==WM_PAINT
@@ -126,7 +120,12 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         invoke  SelectObject,hdcBuffer,hbmBuffer
         ; mov     hbmOldBuffer,eax
 
-        ; MAKEROP4
+        .IF gameState == 0 || gameState == 1
+            jmp EndTilePaint
+        .ENDIF
+
+        ; Tile paint
+        ; Same as MAKEROP4 macro
         mov dwRop, SRCCOPY ; high-order-backgroud-1-black
         shl dwRop,8
         and dwRop,0FF000000h
@@ -189,8 +188,18 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             invoke  SelectObject,hdcMem,hbmSpikeBox
             invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
                     0,0,SRCCOPY
+        .ELSEIF al == 7
+            ; Draw Spike with box
+            invoke  SelectObject,hdcMem,hbmKey
+            invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
+                    0,0,SRCCOPY
+        .ELSEIF al == 8
+            ; Draw Spike with box
+            invoke  SelectObject,hdcMem,hbmDoor
+            invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
+                    0,0,SRCCOPY
         .ELSE
-            ; Draw Void
+            ; Draw Void basically nothing
             ; invoke  SelectObject,hdcMem,hbmBox
             ; invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
             ;         0,0,SRCCOPY
@@ -204,6 +213,7 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
                         hbmCharMask,0,0,
                         dwRop
         .ENDIF
+
 
         inc edi
         add drawPosX,32
@@ -219,26 +229,48 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         dec ecx
         jnz DrawRow
 
-        ; Draw move left text
-        mov bl,10
-        mov eax,currnetMoves
-        idiv bl
-        .IF al == 0
-            mov currnetMovesStr[12],20h
-        .ELSE
-            add al,30h
-            mov currnetMovesStr[12],al
-        .ENDIF
-        add ah,30h
-        mov currnetMovesStr[13],ah
-        mov  eax,currnetLevel
-        mov  currnetLevelStr[LENGTHOF currnetMovesStr],al
-        add  currnetLevelStr[LENGTHOF currnetMovesStr], 30h
+    EndTilePaint:
+        ; Change text property
         invoke  SetTextColor,hdcBuffer,0ffffffh
         invoke  SetBkColor,hdcBuffer,0
-        invoke  TextOut,hdcBuffer,0,TOTAL_ROWS*TILE_HEIGHT,ADDR currnetLevelStr,LENGTHOF currnetLevelStr-1
-        invoke  TextOut,hdcBuffer,TOTAL_COLS*TILE_WIDTH/2,TOTAL_ROWS*TILE_HEIGHT,ADDR currnetMovesStr,LENGTHOF currnetMovesStr-1
-        ; invoke DrawText,hdc,ADDR currnetMovesStr,-1,ADDR currnetMovesRet, DT_WORDBREAK or DT_LEFT
+        .IF gameState==0
+            invoke  CreateFont,30,0,0,0,FW_BOLD,0,0,0,
+                    ANSI_CHARSET,OUT_STRING_PRECIS,CLIP_CHARACTER_PRECIS,ANTIALIASED_QUALITY,FF_MODERN,NULL
+            mov     hFont,eax
+            ; Just in cast not to overwrite the old one.
+            invoke  SelectObject,hdcBuffer,hFont
+            mov     hTitleOld,eax
+            invoke DrawText,hdcBuffer,ADDR titleStr,-1,ADDR redrawRange, DT_WORDBREAK or DT_CENTER or DT_VCENTER or DT_SINGLELINE
+            invoke SelectObject,hdcBuffer,hTitleOld
+            invoke DeleteDC,eax
+            invoke DrawText,hdcBuffer,ADDR pressSpaceStr,-1,ADDR pressSpaceRect, DT_WORDBREAK or DT_CENTER or DT_VCENTER or DT_SINGLELINE
+
+        .ELSEIF gameState==1
+            mov  eax,currentLevel
+            mov  transLevelStr[LENGTHOF transLevelStr-2],al
+            add  transLevelStr[LENGTHOF transLevelStr-2],30h
+            invoke DrawText,hdcBuffer,ADDR transLevelStr,-1,ADDR redrawRange, DT_WORDBREAK or DT_CENTER or DT_VCENTER or DT_SINGLELINE
+            invoke SetTimer,hWndd,IDT_TRANSITION_TIMER,1000,0
+        .ELSEIF gameState==2
+            ; String process for gametime
+            mov bl,10
+            mov eax,currentMoves
+            idiv bl
+            .IF al == 0
+                mov currentMovesStr[12],20h
+            .ELSE
+                add al,30h
+                mov currentMovesStr[12],al
+            .ENDIF
+            add ah,30h
+            mov currentMovesStr[13],ah
+            mov  eax,currentLevel
+            mov  currentLevelStr[LENGTHOF currentMovesStr],al
+            add  currentLevelStr[LENGTHOF currentMovesStr],30h
+            ; Draw move left text
+            invoke  TextOut,hdcBuffer,0,TOTAL_ROWS*TILE_HEIGHT,ADDR currentLevelStr,LENGTHOF currentLevelStr-1
+            invoke  TextOut,hdcBuffer,TOTAL_COLS*TILE_WIDTH/2,TOTAL_ROWS*TILE_HEIGHT,ADDR currentMovesStr,LENGTHOF currentMovesStr-1
+        .ENDIF
 
         ; Buffer to window
         invoke  BitBlt,hdc,0,0,WINDOW_WIDTH,WINDOW_HEIGHT,hdcBuffer,
@@ -250,6 +282,9 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
 
         invoke DefWindowProc,hWndd,uMsg,wParam,lParam
 
+    .ELSEIF uMsg==WM_ERASEBKGND
+        mov eax,1
+        ret
     .ELSEIF uMsg==WM_KEYUP
         mov esi,cCharPosY
         shl esi,3
@@ -264,11 +299,19 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         .ELSEIF wParam==VK_RIGHT
             invoke ProcessMoveLogic,1,1,0
         .ELSEIF wParam==52h
-            invoke ResetGame,currnetLevel
+            invoke ResetGame,currentLevel
         .ELSEIF wParam==31h
             invoke ResetGame,1
         .ELSEIF wParam==32h
             invoke ResetGame,2
+        .ELSEIF wParam==33h
+            invoke ResetGame,3
+        .ELSEIF wParam==VK_SPACE && gameState==0
+            mov gameState,1
+        .ELSEIF wParam==VK_ESCAPE
+            invoke PostQuitMessage,NULL
+            xor eax,eax
+            ret
         .ENDIF
         ; If both parameters are NULL, the entire client area is added to the update region.
         ; invoke RedrawWindow,hWndd, 0, 0, RDW_INVALIDATE or RDW_UPDATENOW
@@ -295,6 +338,14 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             mov hbmEnemy,eax
             invoke  InvalidateRect,hWndd,ADDR redrawRange,1
             invoke UpdateWindow,hWndd
+        .ELSEIF wParam==IDT_TRANSITION_TIMER
+            mov gameState,2
+            ; Last param is for callback function.
+            ; We use wm_timer here.
+            invoke SetTimer,hWnd,IDT_SPRITE_TIMER,150,0
+            invoke KillTimer,hWndd,IDT_TRANSITION_TIMER
+            invoke  InvalidateRect,hWndd,ADDR redrawRange,1
+            invoke  UpdateWindow,hWndd
         .ENDIF
 
     .ELSEIF uMsg==WM_COMMAND
@@ -319,6 +370,16 @@ WndProc ENDP
 
 LoadBitmapHandlers PROC
 
+    ; Dynamic load transition if level increased
+    ; invoke  LoadImage,hInstance,ADDR bmpCharName,IMAGE_BITMAP,0,0,
+    ;     LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+    ; mov hbmChar,eax
+
+    ; invoke  LoadImage,hInstance,ADDR bmpCharName,IMAGE_BITMAP,0,0,
+    ;     LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+    ; mov hbmChar,eax
+
+    ; Load tiles
     invoke  LoadImage,hInstance,ADDR bmpCharName,IMAGE_BITMAP,0,0,
         LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
     mov hbmChar,eax
@@ -359,6 +420,14 @@ LoadBitmapHandlers PROC
         LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
     mov hbmSpikeBox,eax
 
+    invoke  LoadImage,hInstance,ADDR bmpKeyName,IMAGE_BITMAP,0,0,
+        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+    mov hbmKey,eax
+
+    invoke  LoadImage,hInstance,ADDR bmpDoorName,IMAGE_BITMAP,0,0,
+        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+    mov hbmDoor,eax
+
     ret
 LoadBitmapHandlers ENDP
 
@@ -385,13 +454,13 @@ ProcessMoveLogic PROC USES eax,
         .IF bSokobanStates[esi+eax] == 0
             mov bSokobanStates[esi],0
             mov bSokobanStates[esi+eax],4
-        .ELSEIF bSokobanStates[esi+eax] == 1 || bSokobanStates[esi+eax] == 3
+        .ELSEIF bSokobanStates[esi+eax] == 1 || bSokobanStates[esi+eax] == 2 || bSokobanStates[esi+eax] == 3
             mov bSokobanStates[esi],0
         .ENDIF
     .ELSEIF bSokobanStates[esi] == 5
         ; Next Level
-        inc currnetLevel
-        invoke ResetGame,currnetLevel
+        inc currentLevel
+        invoke ResetGame,currentLevel
     .ELSEIF bSokobanStates[esi] == 6
         ; Spike with Barrel
         .IF bSokobanStates[esi+eax] == 0 ; If movable
@@ -403,34 +472,47 @@ ProcessMoveLogic PROC USES eax,
             mov bSokobanStates[esi+eax],6
         .ENDIF
     .ENDIF
-    dec currnetMoves
+    dec currentMoves
     ; take one move if on spike when end
     .IF bSokobanStates[esi] == 3
         ;Spike
-        dec currnetMoves
+        dec currentMoves
     .ENDIF
-    .IF currnetMoves <= 0
-        invoke ResetGame,currnetLevel
+    .IF currentMoves <= 0
+        invoke ResetGame,currentLevel
     .ENDIF
     ret
 ProcessMoveLogic ENDP
 
 ResetGame PROC USES eax ecx esi,
     level:DWORD
-    m2m currnetLevel,level
+    m2m currentLevel,level
     ; Reset Charactor
     .IF level == 1
         mov cCharPosX,6
         mov cCharPosY,1
         push [maxMoves+1*TYPE SDWORD] ; 4
-        pop currnetMoves
+        pop currentMoves
         mov esi,OFFSET bLevelStates1
     .ELSEIF level == 2
-        mov cCharPosX,1
+        mov cCharPosX,2
         mov cCharPosY,5
         push [maxMoves+2*TYPE SDWORD] ; 8
-        pop currnetMoves
+        pop currentMoves
         mov esi,OFFSET bLevelStates2
+    .ELSEIF level == 3
+        mov cCharPosX,6
+        mov cCharPosY,2
+        push [maxMoves+3*TYPE SDWORD] ; 8
+        pop currentMoves
+        mov esi,OFFSET bLevelStates3
+    .ELSEIF level == 4
+        m2m currentLevel,3
+        mov cCharPosX,6
+        mov cCharPosY,2
+        push [maxMoves+3*TYPE SDWORD] ; 8
+        pop currentMoves
+        mov esi,OFFSET bLevelStates3
     .ENDIF
     ; Reset tiles
     xor ecx,ecx
@@ -443,5 +525,28 @@ CopyLoop:
 
     ret
 ResetGame ENDP
+
+PlayAudio PROC
+	LOCAL mciOpenParms:MCI_OPEN_PARMS, mciPlayParms:MCI_PLAY_PARMS
+
+	mov eax, hWnd
+	mov mciPlayParms.dwCallback, eax
+
+	mov eax, OFFSET playerType
+	mov mciOpenParms.lpstrDeviceType, eax
+	mov eax, OFFSET filePath
+	mov mciOpenParms.lpstrElementName, eax
+	mov eax, OFFSET playerAlias
+	mov mciOpenParms.lpstrAlias, eax
+
+ 	invoke mciSendCommand, 0, MCI_OPEN,MCI_OPEN_TYPE or MCI_OPEN_ELEMENT, ADDR mciOpenParms
+
+	mov eax, mciOpenParms.wDeviceID
+	mov playerId, eax
+
+	invoke mciSendCommand, playerId, MCI_PLAY, MCI_NOTIFY, ADDR mciPlayParms
+
+	ret
+PlayAudio ENDP
 
 END Main

@@ -15,10 +15,12 @@ bmpEnemy2   BITMAP resources\Enemy2.bmp
 bmpEnemy3   BITMAP resources\Enemy3.bmp
 bmpEnemy4   BITMAP resources\Enemy4.bmp
 bmpEnemy5   BITMAP resources\Enemy5.bmp
-bmpEnemyMask0    BITMAP resources\EnemyMask0.bmp
-bmpEnemyMask1    BITMAP resources\EnemyMask1.bmp
+bmpEnemyMask0   BITMAP resources\EnemyMask0.bmp
+bmpEnemyMask1   BITMAP resources\EnemyMask1.bmp
 bmpFloor    BITMAP resources\Floor.bmp
 bmpStair    BITMAP resources\Stair.bmp
+bmpKey      BITMAP resources\Key.bmp
+bmpDoor     BITMAP resources\Door.bmp
 
 /*
 Unique 16-bit unsigned integer value identifying the resource.
