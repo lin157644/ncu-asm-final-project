@@ -11,8 +11,8 @@ Main PROC
 
     ; Set window class attributes in WNDCLASSEX structure
     mov wndclass.cbSize,        sizeof WNDCLASSEX
-    mov wndclass.style,         CS_BYTEALIGNCLIENT or CS_BYTEALIGNWINDOW
-    ; mov wndclass.style,         CS_HREDRAW or CS_VREDRAW
+    mov wndclass.style,         CS_BYTEALIGNCLIENT or CS_BYTEALIGNWINDOW or CS_OWNDC
+    mov wndclass.style,         CS_HREDRAW or CS_VREDRAW
     mov wndclass.lpfnWndProc,   OFFSET WndProc      ; 處理視窗事件的函式
     mov wndclass.cbClsExtra,    0
     mov wndclass.cbWndExtra,    0
@@ -55,17 +55,74 @@ Main PROC
     invoke ShowWindow,hWnd, SW_SHOWNORMAL
     invoke UpdateWindow,hWnd
 
-    .while  TRUE
-            invoke  GetMessage,offset msg,NULL,0,0
-    .break  .if     !eax
+    mov frameCounter,0
+    .WHILE  TRUE
+        invoke  PeekMessage,offset msg,NULL,0,0,PM_REMOVE
+        .IF eax
+            ; .BREAK  .IF msg.message == WM_QUIT
+            .IF msg.message == WM_QUIT
+            jmp Quit
+            .ENDIF
             invoke  DispatchMessage,offset msg
-    .endw
-            mov     eax,msg.wParam
-            invoke  ExitProcess,eax
-
-    ; call MsgLoop
+        .ELSE
+            call Gameloop
+            invoke  Sleep,30
+        .ENDIF
+    .ENDW
+Quit:
+    mov     eax,msg.wParam
+    invoke  ExitProcess,eax
     invoke ExitProcess,eax
 Main ENDP
+
+Gameloop PROC
+    inc frameCounter
+    .IF gameState == 1
+        mov eax,frameCounter
+        sub eax,transition_start
+        .IF eax>TRANSITION_DURATION
+            mov gameState,2
+        .ENDIF
+    .ENDIF
+    .IF gameState == 2
+        ; ; mod 5
+        ; mov eax,frameCounter
+        ; mov edx,-1717986918 ; edx = 2^33/5
+        ; mul edx ; Dest EDX:EAX
+        ; ; Only take the edx part
+        ; mov ecx,edx
+        ; shl ecx,2   ; i/5*4
+        ; add edx,ecx ; edx = i/5*5
+        ; sub eax,edx ; eax -= edx
+        ; shr edx,2   ; edx = frameCounter/4
+        mov eax,frameCounter
+        mov edx,eax ; eax=edx
+        shr eax,2   ; eax/4
+        shl eax,2   ; eax/4*4
+        sub edx,eax
+        .IF !edx    ; If edx = 0
+            inc bmpEnemyName[8]
+            .IF bmpEnemyName[8] == 36h
+                mov bmpEnemyName[8],30h
+                mov bmpEnemyMaskName[12],30h
+                invoke  LoadImage,hInstance,ADDR bmpEnemyMaskName,IMAGE_BITMAP,0,0,
+                    LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+                mov hbmEnemyMask,eax
+            .ELSEIF bmpEnemyName[8] == 34h || bmpEnemyName[8] == 35h
+                mov bmpEnemyMaskName[12],31h
+                invoke  LoadImage,hInstance,ADDR bmpEnemyMaskName,IMAGE_BITMAP,0,0,
+                    LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+                mov hbmEnemyMask,eax
+            .ENDIF
+            invoke  LoadImage,hInstance,ADDR bmpEnemyName,IMAGE_BITMAP,0,0,
+                LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+            mov hbmEnemy,eax
+        .ENDIF
+
+    .ENDIF
+    invoke  InvalidateRect,hWnd,ADDR redrawRange,1
+    ret
+Gameloop ENDP
 
 ; MsgLoop proc
 
@@ -126,10 +183,10 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
 
         ; Tile paint
         ; Same as MAKEROP4 macro
-        mov dwRop, SRCCOPY ; high-order-backgroud-1-black
+        mov dwRop, SRCCOPY  ; high-order-backgroud-1-black
         shl dwRop,8
         and dwRop,0FF000000h
-        or dwRop, SRCAND ; low-order-foreground-0-white
+        or  dwRop, SRCAND   ; low-order-foreground-0-white
 
         mov ecx, 8
         mov drawPosY,0
@@ -198,6 +255,11 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             invoke  SelectObject,hdcMem,hbmDoor
             invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
                     0,0,SRCCOPY
+        .ELSEIF al == 8
+            ; Draw Spike with box
+            invoke  SelectObject,hdcMem,hbmDoor
+            invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
+                    0,0,SRCCOPY
         .ELSE
             ; Draw Void basically nothing
             ; invoke  SelectObject,hdcMem,hbmBox
@@ -208,10 +270,34 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         .IF edi == cCharPosX && esi == cCharPosY
             ; Draw Charactor
             invoke  SelectObject,hdcMem,hbmChar
-            invoke MaskBlt,hdcBuffer,drawPosX,drawPosY,TILE_WIDTH,TILE_HEIGHT,
+            ; invoke  StretchBlt,hdcBuffer,32,32,-32,TILE_HEIGHT,
+            ;                     hdcMem,0,0,32,TILE_HEIGHT,SRCAND
+            ; invoke  StretchBlt,hdcMem,0,0,-32,TILE_HEIGHT,
+            ;                     hdcMem,0,0,32,TILE_HEIGHT,SRCCOPY
+            ; invoke  SelectObject,hdcMem,hbmCharMask
+            ; invoke  StretchBlt,hdcBuffer,32,32,32,TILE_HEIGHT,
+            ;                     hdcMem,0,0,32,TILE_HEIGHT,SRCCOPY
+            invoke  MaskBlt,hdcBuffer,drawPosX,drawPosY,TILE_WIDTH,TILE_HEIGHT,
                         hdcMem,0,0,
                         hbmCharMask,0,0,
                         dwRop
+            mov eax,drawPosX
+            mov ebx,drawPosY
+            mov ptPlgBlt[0].x,eax      ; upper-left corner
+            mov ptPlgBlt[0].y,ebx
+            mov ptPlgBlt[1*TYPE POINT].x,eax
+            mov ptPlgBlt[1*TYPE POINT].y,ebx
+            mov ptPlgBlt[2*TYPE POINT].x,eax
+            mov ptPlgBlt[2*TYPE POINT].y,ebx
+            add ptPlgBlt[1*TYPE POINT].x,TILE_WIDTH    ; upper-right corner
+            dec ptPlgBlt[1*TYPE POINT].x
+            add ptPlgBlt[2*TYPE POINT].y,TILE_HEIGHT   ; lower-left corner
+            dec ptPlgBlt[2*TYPE POINT].y
+
+            ; invoke PlgBlt,hdcBuffer,ADDR ptPlgBlt,hdcMem,0,0,TILE_WIDTH,TILE_HEIGHT,
+            ;             hbmCharMask,0,0
+            ; invoke TransparentBlt,hdcBuffer,drawPosX,drawPosY,32,32,
+            ;         hdcMem,0,0,32,32,0ffffffffh
         .ENDIF
 
 
@@ -250,7 +336,6 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             mov  transLevelStr[LENGTHOF transLevelStr-2],al
             add  transLevelStr[LENGTHOF transLevelStr-2],30h
             invoke DrawText,hdcBuffer,ADDR transLevelStr,-1,ADDR redrawRange, DT_WORDBREAK or DT_CENTER or DT_VCENTER or DT_SINGLELINE
-            invoke SetTimer,hWndd,IDT_TRANSITION_TIMER,1000,0
         .ELSEIF gameState==2
             ; String process for gametime
             mov bl,10
@@ -303,14 +388,22 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         .ELSEIF wParam==31h
             invoke ResetGame,1
             mov gameState,1
+            push frameCounter
+            pop transition_start
         .ELSEIF wParam==32h
             invoke ResetGame,2
             mov gameState,1
+            push frameCounter
+            pop transition_start
         .ELSEIF wParam==33h
             invoke ResetGame,3
             mov gameState,1
+            push frameCounter
+            pop transition_start
         .ELSEIF wParam==VK_SPACE && gameState==0
             mov gameState,1
+            push frameCounter
+            pop transition_start
         .ELSEIF wParam==VK_ESCAPE
             invoke PostQuitMessage,NULL
             xor eax,eax
@@ -318,38 +411,8 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         .ENDIF
         ; If both parameters are NULL, the entire client area is added to the update region.
         ; invoke RedrawWindow,hWndd, 0, 0, RDW_INVALIDATE or RDW_UPDATENOW
-        invoke  InvalidateRect,hWndd,ADDR redrawRange,1
-        invoke  UpdateWindow,hWndd
 
     .ELSEIF uMsg==WM_TIMER
-        .IF wParam == IDT_SPRITE_TIMER
-            inc bmpEnemyName[8]
-            .IF bmpEnemyName[8] == 36h
-                mov bmpEnemyName[8],30h
-                mov bmpEnemyMaskName[12],30h
-                invoke  LoadImage,hInstance,ADDR bmpEnemyMaskName,IMAGE_BITMAP,0,0,
-                    LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
-                mov hbmEnemyMask,eax
-            .ELSEIF bmpEnemyName[8] == 34h || bmpEnemyName[8] == 35h
-                mov bmpEnemyMaskName[12],31h
-                invoke  LoadImage,hInstance,ADDR bmpEnemyMaskName,IMAGE_BITMAP,0,0,
-                    LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
-                mov hbmEnemyMask,eax
-            .ENDIF
-            invoke  LoadImage,hInstance,ADDR bmpEnemyName,IMAGE_BITMAP,0,0,
-                LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
-            mov hbmEnemy,eax
-            invoke  InvalidateRect,hWndd,ADDR redrawRange,1
-            invoke UpdateWindow,hWndd
-        .ELSEIF wParam==IDT_TRANSITION_TIMER
-            mov gameState,2
-            ; Last param is for callback function.
-            ; We use wm_timer here.
-            invoke SetTimer,hWnd,IDT_SPRITE_TIMER,150,0
-            invoke KillTimer,hWndd,IDT_TRANSITION_TIMER
-            invoke  InvalidateRect,hWndd,ADDR redrawRange,1
-            invoke  UpdateWindow,hWndd
-        .ENDIF
 
     .ELSEIF uMsg==WM_COMMAND
         mov eax,wParam
@@ -460,10 +523,6 @@ ProcessMoveLogic PROC USES eax,
         .ELSEIF bSokobanStates[esi+eax] == 1 || bSokobanStates[esi+eax] == 2 || bSokobanStates[esi+eax] == 3
             mov bSokobanStates[esi],0
         .ENDIF
-    .ELSEIF bSokobanStates[esi] == 5
-        ; Next Level
-        inc currentLevel
-        invoke ResetGame,currentLevel
     .ELSEIF bSokobanStates[esi] == 6
         ; Spike with Barrel
         .IF bSokobanStates[esi+eax] == 0 ; If movable
@@ -495,12 +554,18 @@ ProcessMoveLogic PROC USES eax,
     .IF currentMoves <= 0
         invoke ResetGame,currentLevel
     .ENDIF
+    .IF bSokobanStates[esi] == 5
+        ; Next Level
+        inc currentLevel
+        invoke ResetGame,currentLevel
+    .ENDIF
     ret
 ProcessMoveLogic ENDP
 
 ResetGame PROC USES eax ecx esi,
     level:DWORD
     invoke KillTimer,hWnd,IDT_SPRITE_TIMER
+    mov hasKeyState,0
     m2m currentLevel,level
     ; Reset Charactor
     .IF level == 1

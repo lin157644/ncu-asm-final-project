@@ -22,6 +22,8 @@ WINDOW_WIDTH    EQU TOTAL_ROWS*TILE_HEIGHT
 WINDOW_HEIGHT   EQU TOTAL_ROWS*TILE_HEIGHT+TEXT_HEIGHT
 IDT_SPRITE_TIMER        EQU 1
 IDT_TRANSITION_TIMER    EQU 2
+TRANSITION_DURATION     EQU 30
+
 m2m MACRO M1, M2
     push M2
     pop  M1
@@ -30,6 +32,7 @@ ENDM
 WndProc PROTO hWnd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
 ProcessMoveLogic PROTO, indexOffset:DWORD, xOffset:DWORD, yOffset:DWORD
 ResetGame PROTO, level:DWORD
+Gameloop PROTO
 PlayBGM PROTO
 
 .data
@@ -62,7 +65,7 @@ hbmKey          HANDLE  ?
 hbmDoor         HANDLE  ?
 hBufferBitmap   HANDLE  ?
 hTitleOld       HANDLE  ?
-hInstance       DWORD   ?
+hInstance       HANDLE  ?
 WndX            DWORD   0
 WndY            DWORD   0
 WndWidth        DWORD   WINDOW_WIDTH
@@ -87,6 +90,8 @@ titleStr        BYTE    "Sokoban",0
 pressSpaceStr   BYTE    "Press space to start",0
 pressSpaceRect  RECT    <0,100,WINDOW_WIDTH,WINDOW_HEIGHT>
 hFont           HFONT   ?
+frameCounter    DWORD   ?
+transition_start DWORD  ?
 ; Game state 0:menu 1:Show Level 2:Gaming 3:Win
 gameState       BYTE 0
 hasKeyState        BYTE 0
@@ -121,4 +126,5 @@ bLevelStates3   BYTE 1,1,1,1,1,1,5,1
 playerId        DWORD 0
 playerType      BYTE  "MPEGVideo",0
 playerAlias     BYTE  "BGMPlayer", 0
-filePath        BYTE  "C:\bgmusic.mp3", 0 
+filePath        BYTE  "C:\bgmusic.mp3", 0
+ptPlgBlt        POINT <0,0>,<32,0>,<0,32>
