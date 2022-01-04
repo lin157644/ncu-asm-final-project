@@ -1,26 +1,21 @@
 #include "\masm32\INCLUDE\Resource.h"
 
-bmpIcon     ICON   resources\ICON.ico
+199     ICON   resources\ICON.ico
 
 /*Unique name or a 16-bit unsigned integer value identifying the resource.*/
-bmpChar     BITMAP resources\Character.bmp
-bmpCharMask BITMAP resources\CharacterMask.bmp
-bmpBox      BITMAP resources\Box.bmp
-bmpWall     BITMAP resources\Wall.bmp
-bmpSpike    BITMAP resources\Spike.bmp
-bmpSpikeBox    BITMAP resources\SpikeBox.bmp
-bmpEnemy0   BITMAP resources\Enemy0.bmp
-bmpEnemy1   BITMAP resources\Enemy1.bmp
-bmpEnemy2   BITMAP resources\Enemy2.bmp
-bmpEnemy3   BITMAP resources\Enemy3.bmp
-bmpEnemy4   BITMAP resources\Enemy4.bmp
-bmpEnemy5   BITMAP resources\Enemy5.bmp
-bmpEnemyMask0   BITMAP resources\EnemyMask0.bmp
-bmpEnemyMask1   BITMAP resources\EnemyMask1.bmp
-bmpFloor    BITMAP resources\Floor.bmp
-bmpStair    BITMAP resources\Stair.bmp
-bmpKey      BITMAP resources\Key.bmp
-bmpDoor     BITMAP resources\Door.bmp
+100     BITMAP resources\Floor.bmp
+101     BITMAP resources\Wall.bmp
+102     BITMAP resources\Box.bmp
+103     BITMAP resources\Spike.bmp
+105     BITMAP resources\Stair.bmp
+106     BITMAP resources\SpikeBox.bmp
+107     BITMAP resources\Key.bmp
+108     BITMAP resources\Door.bmp
+
+151     BITMAP resources\slime_idle_spritesheet.bmp
+152     BITMAP resources\slime_idle_spritesheet_mask.bmp
+153     BITMAP resources\knight_idle_spritesheet.bmp
+154     BITMAP resources\knight_idle_spritesheet_mask.bmp
 
 /*
 Unique 16-bit unsigned integer value identifying the resource.

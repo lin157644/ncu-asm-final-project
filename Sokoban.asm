@@ -17,7 +17,7 @@ Main PROC
     mov wndclass.cbClsExtra,    0
     mov wndclass.cbWndExtra,    0
     m2m wndclass.hInstance,     hInstance           ; m2m push pop macro
-    invoke LoadIcon,hInstance,ADDR bmpIconName
+    invoke LoadIcon,hInstance,IDI_ICON
     mov wndclass.hIcon,         eax
     invoke LoadCursor,          NULL,IDC_ARROW
     mov wndclass.hCursor,       eax
@@ -77,14 +77,14 @@ Main ENDP
 
 Gameloop PROC
     inc frameCounter
-    .IF gameState == 1
+    .IF gameState == GSTATE_TRANS
         mov eax,frameCounter
         sub eax,transition_start
-        .IF eax>TRANSITION_DURATION
-            mov gameState,2
+        .IF eax>TRANS_DUR
+            mov gameState,GSTATE_LEVEL
         .ENDIF
     .ENDIF
-    .IF gameState == 2
+    .IF gameState == GSTATE_LEVEL
         ; ; mod 5
         ; mov eax,frameCounter
         ; mov edx,-1717986918 ; edx = 2^33/5
@@ -100,24 +100,6 @@ Gameloop PROC
         shr eax,2   ; eax/4
         shl eax,2   ; eax/4*4
         sub edx,eax
-        .IF !edx    ; If edx = 0
-            inc bmpEnemyName[8]
-            .IF bmpEnemyName[8] == 36h
-                mov bmpEnemyName[8],30h
-                mov bmpEnemyMaskName[12],30h
-                invoke  LoadImage,hInstance,ADDR bmpEnemyMaskName,IMAGE_BITMAP,0,0,
-                    LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
-                mov hbmEnemyMask,eax
-            .ELSEIF bmpEnemyName[8] == 34h || bmpEnemyName[8] == 35h
-                mov bmpEnemyMaskName[12],31h
-                invoke  LoadImage,hInstance,ADDR bmpEnemyMaskName,IMAGE_BITMAP,0,0,
-                    LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
-                mov hbmEnemyMask,eax
-            .ENDIF
-            invoke  LoadImage,hInstance,ADDR bmpEnemyName,IMAGE_BITMAP,0,0,
-                LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
-            mov hbmEnemy,eax
-        .ENDIF
 
     .ENDIF
     invoke  InvalidateRect,hWnd,ADDR redrawRange,1
@@ -177,7 +159,7 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         invoke  SelectObject,hdcBuffer,hbmBuffer
         ; mov     hbmOldBuffer,eax
 
-        .IF gameState == 0 || gameState == 1
+        .IF ! (gameState == GSTATE_LEVEL)
             jmp EndTilePaint
         .ENDIF
 
@@ -186,7 +168,7 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         mov dwRop, SRCCOPY  ; high-order-backgroud-1-black
         shl dwRop,8
         and dwRop,0FF000000h
-        or  dwRop, SRCAND   ; low-order-foreground-0-white
+        or  dwRop, SRCPAINT   ; low-order-foreground-0-white
 
         mov ecx, 8
         mov drawPosY,0
@@ -229,10 +211,21 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             invoke  SelectObject,hdcMem,hbmFloor
             invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
                     0,0,SRCCOPY
-            invoke  SelectObject,hdcMem,hbmEnemy
+            xor edx,edx
+            mov eax,frameCounter
+            shr eax,2 ; eax/4 每四Frame換一個圖片
+            mov ebx,6
+            div ebx
+            ; mov edx,eax ; eax=edx
+            ; shr eax,2   ; eax/4
+            ; shl eax,2   ; eax/4*4
+            ; sub edx,eax
+            shl edx,5   ; *32
+            mov spriteIndex, edx
+            invoke  SelectObject,hdcMem,hbmSlime
             invoke MaskBlt,hdcBuffer,drawPosX,drawPosY,32,32,
-                        hdcMem,0,0,
-                        hbmEnemyMask,0,0,
+                        hdcMem,spriteIndex,0,
+                        hbmSlimeMask,spriteIndex,0,
                         dwRop
         .ELSEIF al == 5
             ; Draw Stair
@@ -255,49 +248,44 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             invoke  SelectObject,hdcMem,hbmDoor
             invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
                     0,0,SRCCOPY
-        .ELSEIF al == 8
-            ; Draw Spike with box
-            invoke  SelectObject,hdcMem,hbmDoor
-            invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
-                    0,0,SRCCOPY
         .ELSE
             ; Draw Void basically nothing
-            ; invoke  SelectObject,hdcMem,hbmBox
-            ; invoke  BitBlt,hdcBuffer,drawPosX,drawPosY,32,32,hdcMem,
-            ;         0,0,SRCCOPY
         .endif
 
         .IF edi == cCharPosX && esi == cCharPosY
             ; Draw Charactor
-            invoke  SelectObject,hdcMem,hbmChar
-            ; invoke  StretchBlt,hdcBuffer,32,32,-32,TILE_HEIGHT,
-            ;                     hdcMem,0,0,32,TILE_HEIGHT,SRCAND
-            ; invoke  StretchBlt,hdcMem,0,0,-32,TILE_HEIGHT,
-            ;                     hdcMem,0,0,32,TILE_HEIGHT,SRCCOPY
-            ; invoke  SelectObject,hdcMem,hbmCharMask
-            ; invoke  StretchBlt,hdcBuffer,32,32,32,TILE_HEIGHT,
-            ;                     hdcMem,0,0,32,TILE_HEIGHT,SRCCOPY
-            invoke  MaskBlt,hdcBuffer,drawPosX,drawPosY,TILE_WIDTH,TILE_HEIGHT,
-                        hdcMem,0,0,
-                        hbmCharMask,0,0,
-                        dwRop
-            mov eax,drawPosX
-            mov ebx,drawPosY
-            mov ptPlgBlt[0].x,eax      ; upper-left corner
-            mov ptPlgBlt[0].y,ebx
-            mov ptPlgBlt[1*TYPE POINT].x,eax
-            mov ptPlgBlt[1*TYPE POINT].y,ebx
-            mov ptPlgBlt[2*TYPE POINT].x,eax
-            mov ptPlgBlt[2*TYPE POINT].y,ebx
-            add ptPlgBlt[1*TYPE POINT].x,TILE_WIDTH    ; upper-right corner
-            dec ptPlgBlt[1*TYPE POINT].x
-            add ptPlgBlt[2*TYPE POINT].y,TILE_HEIGHT   ; lower-left corner
-            dec ptPlgBlt[2*TYPE POINT].y
-
-            ; invoke PlgBlt,hdcBuffer,ADDR ptPlgBlt,hdcMem,0,0,TILE_WIDTH,TILE_HEIGHT,
-            ;             hbmCharMask,0,0
-            ; invoke TransparentBlt,hdcBuffer,drawPosX,drawPosY,32,32,
-            ;         hdcMem,0,0,32,32,0ffffffffh
+            xor edx,edx
+            mov eax,frameCounter
+            shr eax,2 ; eax/4 每四Frame換一個圖片
+            mov ebx,6
+            div ebx
+            ; mov edx,eax ; eax=edx
+            ; shr eax,2   ; eax/4
+            ; shl eax,2   ; eax/4*4
+            ; sub edx,eax
+            shl edx,5   ; *32
+            mov spriteIndex, edx
+            .IF charFacing
+                add drawPosX,TILE_WIDTH
+                invoke  SelectObject,hdcMem,hbmKnightMask
+                invoke  StretchBlt,hdcBuffer,drawPosX,drawPosY,-TILE_WIDTH,TILE_HEIGHT,
+                                    hdcMem,spriteIndex,0,TILE_WIDTH,TILE_HEIGHT,SRCAND
+                invoke  SelectObject,hdcMem,hbmKnight
+                invoke  StretchBlt,hdcBuffer,drawPosX,drawPosY,-TILE_WIDTH,TILE_HEIGHT,
+                                    hdcMem,spriteIndex,0,TILE_WIDTH,TILE_HEIGHT,SRCPAINT
+                sub drawPosX,TILE_WIDTH
+            .ELSE
+                invoke  SelectObject,hdcMem,hbmKnightMask
+                invoke  StretchBlt,hdcBuffer,drawPosX,drawPosY,TILE_WIDTH,TILE_HEIGHT,
+                                    hdcMem,spriteIndex,0,TILE_WIDTH,TILE_HEIGHT,SRCAND
+                invoke  SelectObject,hdcMem,hbmKnight
+                invoke  StretchBlt,hdcBuffer,drawPosX,drawPosY,TILE_WIDTH,TILE_HEIGHT,
+                                    hdcMem,spriteIndex,0,TILE_WIDTH,TILE_HEIGHT,SRCPAINT
+                ; invoke  MaskBlt,hdcBuffer,drawPosX,drawPosY,TILE_WIDTH,TILE_HEIGHT,
+                ;             hdcMem,0,0,
+                ;             hbmCharMask,0,0,
+                ;             dwRop
+            .ENDIF
         .ENDIF
 
 
@@ -319,7 +307,7 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         ; Change text property
         invoke  SetTextColor,hdcBuffer,0ffffffh
         invoke  SetBkColor,hdcBuffer,0
-        .IF gameState==0
+        .IF gameState==GSTATE_TITLE
             invoke  CreateFont,30,0,0,0,FW_BOLD,0,0,0,
                     ANSI_CHARSET,OUT_STRING_PRECIS,CLIP_CHARACTER_PRECIS,ANTIALIASED_QUALITY,FF_MODERN,NULL
             mov     hFont,eax
@@ -331,12 +319,12 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             invoke DeleteDC,eax
             invoke DrawText,hdcBuffer,ADDR pressSpaceStr,-1,ADDR pressSpaceRect, DT_WORDBREAK or DT_CENTER or DT_VCENTER or DT_SINGLELINE
 
-        .ELSEIF gameState==1
+        .ELSEIF gameState==GSTATE_TRANS
             mov  eax,currentLevel
             mov  transLevelStr[LENGTHOF transLevelStr-2],al
             add  transLevelStr[LENGTHOF transLevelStr-2],30h
             invoke DrawText,hdcBuffer,ADDR transLevelStr,-1,ADDR redrawRange, DT_WORDBREAK or DT_CENTER or DT_VCENTER or DT_SINGLELINE
-        .ELSEIF gameState==2
+        .ELSEIF gameState==GSTATE_LEVEL
             ; String process for gametime
             mov bl,10
             mov eax,currentMoves
@@ -355,7 +343,12 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             ; Draw move left text
             invoke  TextOut,hdcBuffer,0,TOTAL_ROWS*TILE_HEIGHT,ADDR currentLevelStr,LENGTHOF currentLevelStr-1
             invoke  TextOut,hdcBuffer,TOTAL_COLS*TILE_WIDTH/2,TOTAL_ROWS*TILE_HEIGHT,ADDR currentMovesStr,LENGTHOF currentMovesStr-1
+        .ELSEIF gameState==GSTATE_WIN
+            invoke DrawText,hdcBuffer,ADDR endingText,-1,ADDR redrawRange, DT_WORDBREAK or DT_CENTER or DT_VCENTER or DT_SINGLELINE
         .ENDIF
+
+        ; FPS
+        invoke RanderFPS,hdcBuffer
 
         ; Buffer to window
         invoke  BitBlt,hdc,0,0,WINDOW_WIDTH,WINDOW_HEIGHT,hdcBuffer,
@@ -380,28 +373,30 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         .ELSEIF wParam==VK_DOWN
             invoke ProcessMoveLogic,8,0,1
         .ELSEIF wParam==VK_LEFT
+            mov charFacing,1
             invoke ProcessMoveLogic,-1,-1,0
         .ELSEIF wParam==VK_RIGHT
+            mov charFacing,0
             invoke ProcessMoveLogic,1,1,0
         .ELSEIF wParam==52h
             invoke ResetGame,currentLevel
         .ELSEIF wParam==31h
             invoke ResetGame,1
-            mov gameState,1
+            mov gameState,GSTATE_TRANS
             push frameCounter
             pop transition_start
         .ELSEIF wParam==32h
             invoke ResetGame,2
-            mov gameState,1
+            mov gameState,GSTATE_TRANS
             push frameCounter
             pop transition_start
         .ELSEIF wParam==33h
             invoke ResetGame,3
-            mov gameState,1
+            mov gameState,GSTATE_TRANS
             push frameCounter
             pop transition_start
-        .ELSEIF wParam==VK_SPACE && gameState==0
-            mov gameState,1
+        .ELSEIF wParam==VK_SPACE && gameState==GSTATE_TITLE
+            mov gameState,GSTATE_TRANS
             push frameCounter
             pop transition_start
         .ELSEIF wParam==VK_ESCAPE
@@ -435,64 +430,54 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
 WndProc ENDP
 
 LoadBitmapHandlers PROC
-
-    ; Dynamic load transition if level increased
-    ; invoke  LoadImage,hInstance,ADDR bmpCharName,IMAGE_BITMAP,0,0,
-    ;     LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
-    ; mov hbmChar,eax
-
-    ; invoke  LoadImage,hInstance,ADDR bmpCharName,IMAGE_BITMAP,0,0,
-    ;     LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
-    ; mov hbmChar,eax
-
     ; Load tiles
-    invoke  LoadImage,hInstance,ADDR bmpCharName,IMAGE_BITMAP,0,0,
-        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
-    mov hbmChar,eax
-
-    invoke  LoadImage,hInstance,ADDR bmpCharMaskName,IMAGE_BITMAP,0,0,
-        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
-    mov hbmCharMask,eax
-
-    invoke  LoadImage,hInstance,ADDR bmpFloorName,IMAGE_BITMAP,0,0,
+    invoke  LoadImage,hInstance,IDB_FLOOR,IMAGE_BITMAP,0,0,
         LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
     mov hbmFloor,eax
 
-    invoke  LoadImage,hInstance,ADDR bmpWallName,IMAGE_BITMAP,0,0,
+    invoke  LoadImage,hInstance,IDB_WALL,IMAGE_BITMAP,0,0,
         LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
     mov hbmWall,eax
 
-    invoke  LoadImage,hInstance,ADDR bmpBoxName,IMAGE_BITMAP,0,0,
+    invoke  LoadImage,hInstance,IDB_BOX,IMAGE_BITMAP,0,0,
         LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
     mov hbmBox,eax
 
-    invoke  LoadImage,hInstance,ADDR bmpSpikeName,IMAGE_BITMAP,0,0,
+    invoke  LoadImage,hInstance,IDB_SPIKE,IMAGE_BITMAP,0,0,
         LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
     mov hbmSpike,eax
 
-    invoke  LoadImage,hInstance,ADDR bmpEnemyName,IMAGE_BITMAP,0,0,
-        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
-    mov hbmEnemy,eax
-
-    invoke  LoadImage,hInstance,ADDR bmpEnemyMaskName,IMAGE_BITMAP,0,0,
-        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
-    mov hbmEnemyMask,eax
-
-    invoke  LoadImage,hInstance,ADDR bmpStairName,IMAGE_BITMAP,0,0,
+    invoke  LoadImage,hInstance,IDB_STAIR,IMAGE_BITMAP,0,0,
         LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
     mov hbmStair,eax
 
-    invoke  LoadImage,hInstance,ADDR bmpSpikeBoxName,IMAGE_BITMAP,0,0,
+    invoke  LoadImage,hInstance,IDB_SPIKE_BOX,IMAGE_BITMAP,0,0,
         LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
     mov hbmSpikeBox,eax
 
-    invoke  LoadImage,hInstance,ADDR bmpKeyName,IMAGE_BITMAP,0,0,
+    invoke  LoadImage,hInstance,IDB_KEY,IMAGE_BITMAP,0,0,
         LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
     mov hbmKey,eax
 
-    invoke  LoadImage,hInstance,ADDR bmpDoorName,IMAGE_BITMAP,0,0,
+    invoke  LoadImage,hInstance,IDB_DOOR,IMAGE_BITMAP,0,0,
         LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
     mov hbmDoor,eax
+
+    invoke  LoadImage,hInstance,IDB_KNIGHT,IMAGE_BITMAP,0,0,
+        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+    mov hbmSlime,eax
+
+    invoke  LoadImage,hInstance,IDB_KNIGHT_MASK,IMAGE_BITMAP,0,0,
+        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+    mov hbmSlimeMask,eax
+
+    invoke  LoadImage,hInstance,IDB_SLIME,IMAGE_BITMAP,0,0,
+        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+    mov hbmKnight,eax
+
+    invoke  LoadImage,hInstance,IDB_SLIME_MASK,IMAGE_BITMAP,0,0,
+        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+    mov hbmKnightMask,eax
 
     ret
 LoadBitmapHandlers ENDP
@@ -564,7 +549,6 @@ ProcessMoveLogic ENDP
 
 ResetGame PROC USES eax ecx esi,
     level:DWORD
-    invoke KillTimer,hWnd,IDT_SPRITE_TIMER
     mov hasKeyState,0
     m2m currentLevel,level
     ; Reset Charactor
@@ -587,12 +571,9 @@ ResetGame PROC USES eax ecx esi,
         pop currentMoves
         mov esi,OFFSET bLevelStates3
     .ELSEIF level == 4
-        m2m currentLevel,3
-        mov cCharPosX,6
-        mov cCharPosY,2
-        push [maxMoves+3*TYPE SDWORD] ; 8
-        pop currentMoves
-        mov esi,OFFSET bLevelStates3
+        inc currentMoves
+        mov gameState,GSTATE_WIN
+        ret
     .ENDIF
     ; Reset tiles
     xor ecx,ecx
@@ -628,5 +609,14 @@ PlayBGM PROC
 
 	ret
 PlayBGM ENDP
+
+RanderFPS PROC USES eax,
+    hdcBuf:HDC
+    mov eax,frameCounter
+    mov FPSText[0],ah
+    mov FPSText[1],al
+    invoke  TextOut,hdcBuf,0,0,ADDR FPSText,2
+    ret
+RanderFPS ENDP
 
 END Main
