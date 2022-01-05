@@ -16,6 +16,8 @@
 152     BITMAP resources\slime_idle_spritesheet_mask.bmp
 153     BITMAP resources\knight_idle_spritesheet.bmp
 154     BITMAP resources\knight_idle_spritesheet_mask.bmp
+155     BITMAP resources\push_anim.bmp
+156     BITMAP resources\push_anim_mask.bmp
 
 /*
 Unique 16-bit unsigned integer value identifying the resource.

@@ -303,6 +303,22 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         dec ecx
         jnz DrawRow
 
+        .IF pushAnimFrame
+            dec pushAnimFrame
+            m2m spriteIndex,pushAnimFrame
+            shr spriteIndex,1
+            shl spriteIndex,5
+            mov eax,96
+            sub eax,spriteIndex
+            mov spriteIndex,eax
+            invoke  SelectObject,hdcMem,hbmPushAnimMask
+            invoke  BitBlt,hdcBuffer,pushAnimPosX,pushAnimPosY,TILE_WIDTH,TILE_HEIGHT,hdcMem,
+                    spriteIndex,0,SRCAND
+            invoke  SelectObject,hdcMem,hbmPushAnim
+            invoke  BitBlt,hdcBuffer,pushAnimPosX,pushAnimPosY,TILE_WIDTH,TILE_HEIGHT,hdcMem,
+                    spriteIndex,0,SRCPAINT
+        .ENDIF
+
     EndTilePaint:
         ; Change text property
         invoke  SetTextColor,hdcBuffer,0ffffffh
@@ -318,7 +334,16 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             invoke SelectObject,hdcBuffer,hTitleOld
             invoke DeleteDC,eax
             invoke DrawText,hdcBuffer,ADDR pressSpaceStr,-1,ADDR pressSpaceRect, DT_WORDBREAK or DT_CENTER or DT_VCENTER or DT_SINGLELINE
-
+        .ELSEIF gameState==GSTATE_TUTORIAL
+            invoke  CreateFont,18,0,0,0,FW_BOLD,0,0,0,
+                    ANSI_CHARSET,OUT_STRING_PRECIS,CLIP_CHARACTER_PRECIS,ANTIALIASED_QUALITY,FF_MODERN,NULL
+            mov     hFont,eax
+            ; Just in cast not to overwrite the old one.
+            invoke  SelectObject,hdcBuffer,hFont
+            mov     hTitleOld,eax
+            invoke DrawText,hdcBuffer,ADDR tutorialStr,-1,ADDR pressSpaceRect, DT_WORDBREAK or DT_CENTER
+            invoke SelectObject,hdcBuffer,hTitleOld
+            invoke DeleteDC,eax
         .ELSEIF gameState==GSTATE_TRANS
             mov  eax,currentLevel
             mov  transLevelStr[LENGTHOF transLevelStr-2],al
@@ -348,7 +373,7 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         .ENDIF
 
         ; FPS
-        invoke RanderFPS,hdcBuffer
+        ; invoke RanderFPS,hdcBuffer
 
         ; Buffer to window
         invoke  BitBlt,hdc,0,0,WINDOW_WIDTH,WINDOW_HEIGHT,hdcBuffer,
@@ -368,18 +393,11 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         shl esi,3
         add esi,cCharPosX
         ; esi for index param
-        .IF wParam==VK_UP
-            invoke ProcessMoveLogic,-8,0,-1
-        .ELSEIF wParam==VK_DOWN
-            invoke ProcessMoveLogic,8,0,1
-        .ELSEIF wParam==VK_LEFT
-            mov charFacing,1
-            invoke ProcessMoveLogic,-1,-1,0
-        .ELSEIF wParam==VK_RIGHT
-            mov charFacing,0
-            invoke ProcessMoveLogic,1,1,0
-        .ELSEIF wParam==52h
+        .IF wParam==52h
             invoke ResetGame,currentLevel
+            mov gameState,GSTATE_TRANS
+            push frameCounter
+            pop transition_start
         .ELSEIF wParam==31h
             invoke ResetGame,1
             mov gameState,GSTATE_TRANS
@@ -396,13 +414,31 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             push frameCounter
             pop transition_start
         .ELSEIF wParam==VK_SPACE && gameState==GSTATE_TITLE
+            mov gameState,GSTATE_TUTORIAL
+        .ELSEIF wParam==VK_SPACE && gameState==GSTATE_TUTORIAL
             mov gameState,GSTATE_TRANS
             push frameCounter
             pop transition_start
+        .ELSEIF wParam==VK_SPACE && gameState==GSTATE_WIN
+            invoke PostQuitMessage,NULL
+            xor eax,eax
+            ret
         .ELSEIF wParam==VK_ESCAPE
             invoke PostQuitMessage,NULL
             xor eax,eax
             ret
+        .ELSEIF gameState==GSTATE_LEVEL
+            .IF wParam==VK_UP
+                invoke ProcessMoveLogic,-8,0,-1
+            .ELSEIF wParam==VK_DOWN
+                invoke ProcessMoveLogic,8,0,1
+            .ELSEIF wParam==VK_LEFT
+                mov charFacing,1
+                invoke ProcessMoveLogic,-1,-1,0
+            .ELSEIF wParam==VK_RIGHT
+                mov charFacing,0
+                invoke ProcessMoveLogic,1,1,0
+            .ENDIF
         .ENDIF
         ; If both parameters are NULL, the entire client area is added to the update region.
         ; invoke RedrawWindow,hWndd, 0, 0, RDW_INVALIDATE or RDW_UPDATENOW
@@ -479,14 +515,23 @@ LoadBitmapHandlers PROC
         LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
     mov hbmKnightMask,eax
 
+    invoke  LoadImage,hInstance,IDB_PUSH_ANIM,IMAGE_BITMAP,0,0,
+        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+    mov hbmPushAnim,eax
+
+    invoke  LoadImage,hInstance,IDB_PUSH_ANIM_MASK,IMAGE_BITMAP,0,0,
+        LR_DEFAULTSIZE or LR_LOADTRANSPARENT or LR_LOADMAP3DCOLORS
+    mov hbmPushAnimMask,eax
+
     ret
 LoadBitmapHandlers ENDP
 
 ProcessMoveLogic PROC USES eax,
-    indexOffset:DWORD, xOffset:DWORD, yOffset:DWORD
+    indexOffset:DWORD, xOffset:SDWORD, yOffset:SDWORD
     mov eax,indexOffset
     add esi,eax
     .IF bSokobanStates[esi] == 0 || bSokobanStates[esi] == 3
+        ; Knight movement
         mov eax,xOffset
         add cCharPosX,eax
         mov eax,yOffset
@@ -500,6 +545,7 @@ ProcessMoveLogic PROC USES eax,
             mov bSokobanStates[esi],6
             mov bSokobanStates[esi+eax],2
         .ENDIF
+        invoke PushAnimation,xOffset,yOffset
     .ELSEIF bSokobanStates[esi] == 4
         ; Move or Kill Enemy
         .IF bSokobanStates[esi+eax] == 0
@@ -508,6 +554,7 @@ ProcessMoveLogic PROC USES eax,
         .ELSEIF bSokobanStates[esi+eax] == 1 || bSokobanStates[esi+eax] == 2 || bSokobanStates[esi+eax] == 3
             mov bSokobanStates[esi],0
         .ENDIF
+        invoke PushAnimation,xOffset,yOffset
     .ELSEIF bSokobanStates[esi] == 6
         ; Spike with Barrel
         .IF bSokobanStates[esi+eax] == 0 ; If movable
@@ -518,16 +565,21 @@ ProcessMoveLogic PROC USES eax,
             mov bSokobanStates[esi],3
             mov bSokobanStates[esi+eax],6
         .ENDIF
+        invoke PushAnimation,xOffset,yOffset
     .ELSEIF bSokobanStates[esi] == 7
+        ; Key
         mov eax,xOffset
         add cCharPosX,eax
         mov eax,yOffset
         add cCharPosY,eax
         mov hasKeyState,1
         mov bSokobanStates[esi],0
+        invoke PlaySound,ADDR getKeyFilePath,NULL,SND_ASYNC or SND_FILENAME
     .ELSEIF bSokobanStates[esi] == 8
+        ; Door
         .IF hasKeyState==1
             mov bSokobanStates[esi],0
+            invoke PlaySound,ADDR getKeyFilePath,NULL,SND_ASYNC or SND_FILENAME
         .ENDIF
     .ENDIF
     dec currentMoves
@@ -535,13 +587,20 @@ ProcessMoveLogic PROC USES eax,
     .IF bSokobanStates[esi] == 3
         ;Spike
         dec currentMoves
+        invoke PlaySound,ADDR onSpikeFilePath,NULL,SND_ASYNC or SND_FILENAME
     .ENDIF
     .IF currentMoves <= 0
         invoke ResetGame,currentLevel
+        mov gameState,GSTATE_TRANS
+        push frameCounter
+        pop transition_start
     .ENDIF
     .IF bSokobanStates[esi] == 5
         ; Next Level
         inc currentLevel
+        mov gameState,GSTATE_TRANS
+        push frameCounter
+        pop transition_start
         invoke ResetGame,currentLevel
     .ENDIF
     ret
@@ -618,5 +677,23 @@ RanderFPS PROC USES eax,
     invoke  TextOut,hdcBuf,0,0,ADDR FPSText,2
     ret
 RanderFPS ENDP
+
+PushAnimation PROC,
+    xPushOffset:SDWORD, yPushOffset:SDWORD
+    ; eight frame
+    mov pushAnimFrame,8
+    m2m pushAnimPosX,cCharPosX
+    mov eax,xPushOffset
+    add pushAnimPosX,eax
+    ; Multiply by 32
+    shl pushAnimPosX,5
+    m2m pushAnimPosY,cCharPosY
+    mov eax,yPushOffset
+    add pushAnimPosY,eax
+    shl pushAnimPosY,5
+    ; PlaySound size limit 100K
+    invoke PlaySound,ADDR hitSoundFilePath,NULL,SND_ASYNC or SND_FILENAME
+    ret
+PushAnimation ENDP
 
 END Main

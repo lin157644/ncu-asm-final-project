@@ -38,15 +38,16 @@ m2m MACRO M1, M2
 ENDM
 
 WndProc PROTO hWnd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
-ProcessMoveLogic PROTO, indexOffset:DWORD, xOffset:DWORD, yOffset:DWORD
+ProcessMoveLogic PROTO, indexOffset:DWORD, xOffset:SDWORD, yOffset:SDWORD
 ResetGame PROTO, level:DWORD
 Gameloop PROTO
 PlayBGM PROTO
 RanderFPS PROTO, hdcBuf:HDC
+PushAnimation PROTO, xPushOffset:SDWORD, yPushOffset:SDWORD
 
 .data
 szClassName     BYTE    "Main_App_Class",0
-szDisplayName   BYTE    "Sokaban",0
+szDisplayName   BYTE    "DungeonTaker",0
 hbmWall         HANDLE  ?
 hbmBox          HANDLE  ?
 hbmSpike        HANDLE  ?
@@ -55,10 +56,12 @@ hbmFloor        HANDLE  ?
 hbmStair        HANDLE  ?
 hbmKey          HANDLE  ?
 hbmDoor         HANDLE  ?
-hbmSlime  HANDLE  ?
-hbmSlimeMask  HANDLE  ?
-hbmKnight   HANDLE  ?
-hbmKnightMask  HANDLE  ?
+hbmSlime        HANDLE  ?
+hbmSlimeMask    HANDLE  ?
+hbmKnight       HANDLE  ?
+hbmKnightMask   HANDLE  ?
+hbmPushAnim     HANDLE  ?
+hbmPushAnimMask HANDLE  ?
 hTitleOld       HANDLE  ?
 hInstance       HANDLE  ?
 WndX            DWORD   0
@@ -68,8 +71,10 @@ WndHeight       DWORD   WINDOW_HEIGHT
 hWnd            HWND    ?
 wndclass        WNDCLASSEX  <?>
 msg             MSG         <?>
-cCharPosX       DWORD   ?
+cCharPosX       DWORD   ?   ; in tiles
 cCharPosY       DWORD   ?
+CharOffsetX     SDWORD   ?   ; in pixel
+CharOffsetY     SDWORD   ?
 wndRect         RECT    <0,0,WINDOW_WIDTH,WINDOW_HEIGHT>
 redrawRange     RECT    <0,0,WINDOW_WIDTH,WINDOW_HEIGHT>
 maxMoves        SDWORD  0,23,24,28
@@ -79,7 +84,7 @@ currentMovesStr BYTE    "Moves left: 00",0
 currentLevel    DWORD   1
 currentLevelStr BYTE    "current level: 0",0
 transLevelStr   BYTE    "Level 0",0
-titleStr        BYTE    "Sokoban",0
+titleStr        BYTE    "DungeonTaker",0
 pressSpaceStr   BYTE    "Press space to start",0
 pressSpaceRect  RECT    <0,100,WINDOW_WIDTH,WINDOW_HEIGHT>
 hFont           HFONT   ?
@@ -119,10 +124,17 @@ bLevelStates3   BYTE 1,1,1,1,1,1,5,1
 
 playerId        DWORD   0
 playerType      BYTE    "MPEGVideo",0
-playerAlias     BYTE    "BGMPlayer", 0
-filePath        BYTE    "C:\bgmusic.mp3", 0
+playerAlias     BYTE    "BGMPlayer",0
+filePath        BYTE    "bgmusic.mp3",0
+hitSoundFilePath BYTE   "push_sound.wav",0
+getKeyFilePath  BYTE    "get_key.wav",0
+onSpikeFilePath BYTE    "on_spike.wav",0
 ; ptPlgBlt        POINT <0,0>,<31,0>,<0,31>
 charFacing      DWORD   FACING_LEFT
 endingText      BYTE    "You Win!",0
 FPSText         BYTE    2 dup(?),0
 spriteIndex     DWORD   0
+pushAnimFrame   DWORD   ?
+pushAnimPosX    DWORD   ?
+pushAnimPosY    DWORD   ?
+tutorialStr     BYTE    "Use arrow keys to move",0dh,0ah,"ESC to exit",0dh,0ah,"R to restart",0dh,0ah,"M to mute",0
