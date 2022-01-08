@@ -1,6 +1,6 @@
 #include "\masm32\INCLUDE\Resource.h"
 
-199     ICON   resources\ICON.ico
+300     ICON   resources\ICON.ico
 
 /*Unique name or a 16-bit unsigned integer value identifying the resource.*/
 100     BITMAP resources\Floor.bmp
@@ -18,6 +18,10 @@
 154     BITMAP resources\knight_idle_spritesheet_mask.bmp
 155     BITMAP resources\push_anim.bmp
 156     BITMAP resources\push_anim_mask.bmp
+
+200     WAVE resources\get_key.wav
+201     WAVE resources\on_spike.wav
+202     WAVE resources\push_sound.wav
 
 /*
 Unique 16-bit unsigned integer value identifying the resource.

@@ -515,12 +515,12 @@ ProcessMoveLogic PROC USES eax esi,
         add cCharPosY,eax
         mov hasKeyState,1
         mov bSokobanStates[esi],0
-        invoke PlaySound,ADDR getKeyFilePath,NULL,SND_ASYNC or SND_FILENAME or SND_NODEFAULT
+        invoke PlaySound,IDR_WAVE_GET_KEY,NULL,SND_ASYNC or SND_RESOURCE or SND_NODEFAULT
     .ELSEIF bSokobanStates[esi] == 8
         ; Door
         .IF hasKeyState==1
             mov bSokobanStates[esi],0
-            invoke PlaySound,ADDR getKeyFilePath,NULL,SND_ASYNC or SND_FILENAME or SND_NODEFAULT
+            invoke PlaySound,IDR_WAVE_GET_KEY,NULL,SND_ASYNC or SND_RESOURCE or SND_NODEFAULT
         .ENDIF
     .ENDIF
 
@@ -530,7 +530,7 @@ ProcessMoveLogic PROC USES eax esi,
     .IF bSokobanStates[esi] == 3
         ;Spike
         dec currentMoves
-        invoke PlaySound,ADDR onSpikeFilePath,NULL,SND_ASYNC or SND_FILENAME or SND_NODEFAULT
+        invoke PlaySound,IDR_WAVE_ON_SPIKE,NULL,SND_ASYNC or SND_RESOURCE or SND_NODEFAULT
     .ENDIF
     ; Check moves left
     .IF currentMoves <= 0
@@ -649,7 +649,7 @@ RenderPushAnim PROC USES eax,
     add pushAnimPosY,eax
     shl pushAnimPosY,5
     ; PlaySound size limit 100K
-    invoke PlaySound,ADDR hitSoundFilePath,NULL,SND_ASYNC or SND_FILENAME or SND_NODEFAULT
+    invoke PlaySound,IDR_WAVE_PUSH_SOUND,NULL,SND_ASYNC or SND_RESOURCE or SND_NODEFAULT
     ret
 RenderPushAnim ENDP
 

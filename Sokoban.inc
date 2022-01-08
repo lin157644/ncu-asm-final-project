@@ -154,8 +154,8 @@ bLevelStates3   BYTE 1,1,1,1,1,1,5,1
 playerId        DWORD   0
 playerType      BYTE    "MPEGVideo",0
 playerAlias     BYTE    "BGMPlayer",0
-bgmPath        BYTE    "bgmusic.mp3",0
-hitSoundFilePath BYTE   "push_sound.wav",0
+bgmPath         BYTE    "bgmusic.mp3",0
+hitSoundFilePath BYTE   "PUSH_SOUND.wav",0
 getKeyFilePath  BYTE    "get_key.wav",0
 onSpikeFilePath BYTE    "on_spike.wav",0
 
