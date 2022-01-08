@@ -28,26 +28,18 @@ Main PROC
 
     invoke RegisterClassEx, ADDR wndclass
 
-    ; Create the main window with an extended window style
-    invoke  AdjustWindowRect,ADDR wndRect,WS_CAPTION or WS_SYSMENU or WS_VISIBLE,0
-    mov eax,wndRect.right
-    mov ebx,wndRect.left
-    neg ebx
-    add wndRect.right,ebx
+    call SetAdjustedWndRect
+    call InitWndPos
 
-    mov eax,wndRect.bottom
-    mov ebx,wndRect.top
-    neg ebx
-    add wndRect.bottom,ebx
-    ; Ex might not needed
+    ; Ex for extra style
     invoke  CreateWindowEx,
         WS_EX_LEFT or WS_EX_ACCEPTFILES,; dwExStyle
         ADDR szClassName,               ; lpClassName
         ADDR szDisplayName,             ; lpWindowName
-        WS_OVERLAPPEDWINDOW,            ; dwStyle
-        0,0,
-        272,
-        315,     ; Initial position and size
+        WS_OVERLAPPED or WS_CAPTION or WS_SYSMENU,            ; dwStyle
+        wndX,wndY,
+        wndRect.right,
+        wndRect.bottom,                 ; Initial position and size
         0,0,                            ; hWndParent hMenu
         hInstance,0                     ; hInstance lpParam
     mov hWnd,eax                        ; save the handle to hWnd
@@ -59,19 +51,14 @@ Main PROC
     .WHILE  TRUE
         invoke  PeekMessage,offset msg,NULL,0,0,PM_REMOVE
         .IF eax
-            ; .BREAK  .IF msg.message == WM_QUIT
-            .IF msg.message == WM_QUIT
-            jmp Quit
-            .ENDIF
+            .BREAK  .IF msg.message == WM_QUIT
             invoke  DispatchMessage,offset msg
         .ELSE
             call Gameloop
             invoke  Sleep,30
         .ENDIF
     .ENDW
-Quit:
     mov     eax,msg.wParam
-    invoke  ExitProcess,eax
     invoke ExitProcess,eax
 Main ENDP
 
@@ -85,16 +72,6 @@ Gameloop PROC
         .ENDIF
     .ENDIF
     .IF gameState == GSTATE_LEVEL
-        ; ; mod 5
-        ; mov eax,frameCounter
-        ; mov edx,-1717986918 ; edx = 2^33/5
-        ; mul edx ; Dest EDX:EAX
-        ; ; Only take the edx part
-        ; mov ecx,edx
-        ; shl ecx,2   ; i/5*4
-        ; add edx,ecx ; edx = i/5*5
-        ; sub eax,edx ; eax -= edx
-        ; shr edx,2   ; edx = frameCounter/4
         mov eax,frameCounter
         mov edx,eax ; eax=edx
         shr eax,2   ; eax/4
@@ -105,27 +82,6 @@ Gameloop PROC
     invoke  InvalidateRect,hWnd,ADDR redrawRange,1
     ret
 Gameloop ENDP
-
-; MsgLoop proc
-
-;     LOCAL msg:MSG
-
-;     push ebx
-;     lea ebx, msg
-;     jmp getmsg
-
-;   msgloop:
-;     invoke TranslateMessage, ebx
-;     invoke DispatchMessage,  ebx
-;   getmsg:
-;     invoke GetMessage,ebx,0,0,0
-;     test eax, eax
-;     jnz msgloop
-
-;     pop ebx
-;     ret
-
-; MsgLoop endp
 
 WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
     LOCAL paintStruct:PAINTSTRUCT
@@ -153,7 +109,7 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         invoke  CreateCompatibleDC,hdc ; A memory DC for Bitmap
         mov     hdcMem,eax
 
-        invoke  CreateCompatibleBitmap,hdc,512,512
+        invoke  CreateCompatibleBitmap,hdc,WINDOW_WIDTH,WINDOW_HEIGHT
         mov     hbmBuffer,eax
 
         invoke  SelectObject,hdcBuffer,hbmBuffer
@@ -168,7 +124,7 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         mov dwRop, SRCCOPY  ; high-order-backgroud-1-black
         shl dwRop,8
         and dwRop,0FF000000h
-        or  dwRop, SRCPAINT   ; low-order-foreground-0-white
+        or  dwRop, SRCPAINT ; low-order-foreground-0-white
 
         mov ecx, 8
         mov drawPosY,0
@@ -215,17 +171,13 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             mov eax,frameCounter
             shr eax,2 ; eax/4 每四Frame換一個圖片
             mov ebx,6
-            div ebx
-            ; mov edx,eax ; eax=edx
-            ; shr eax,2   ; eax/4
-            ; shl eax,2   ; eax/4*4
-            ; sub edx,eax
+            div ebx ; Not best practice
             shl edx,5   ; *32
-            mov spriteIndex, edx
+            mov spriteOffsetX, edx
             invoke  SelectObject,hdcMem,hbmSlime
             invoke MaskBlt,hdcBuffer,drawPosX,drawPosY,32,32,
-                        hdcMem,spriteIndex,0,
-                        hbmSlimeMask,spriteIndex,0,
+                        hdcMem,spriteOffsetX,0,
+                        hbmSlimeMask,spriteOffsetX,0,
                         dwRop
         .ELSEIF al == 5
             ; Draw Stair
@@ -258,33 +210,25 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             mov eax,frameCounter
             shr eax,2 ; eax/4 每四Frame換一個圖片
             mov ebx,6
-            div ebx
-            ; mov edx,eax ; eax=edx
-            ; shr eax,2   ; eax/4
-            ; shl eax,2   ; eax/4*4
-            ; sub edx,eax
+            div ebx ; Not best practice
             shl edx,5   ; *32
-            mov spriteIndex, edx
+            mov spriteOffsetX, edx
             .IF charFacing
                 add drawPosX,TILE_WIDTH
                 invoke  SelectObject,hdcMem,hbmKnightMask
                 invoke  StretchBlt,hdcBuffer,drawPosX,drawPosY,-TILE_WIDTH,TILE_HEIGHT,
-                                    hdcMem,spriteIndex,0,TILE_WIDTH,TILE_HEIGHT,SRCAND
+                                    hdcMem,spriteOffsetX,0,TILE_WIDTH,TILE_HEIGHT,SRCAND
                 invoke  SelectObject,hdcMem,hbmKnight
                 invoke  StretchBlt,hdcBuffer,drawPosX,drawPosY,-TILE_WIDTH,TILE_HEIGHT,
-                                    hdcMem,spriteIndex,0,TILE_WIDTH,TILE_HEIGHT,SRCPAINT
+                                    hdcMem,spriteOffsetX,0,TILE_WIDTH,TILE_HEIGHT,SRCPAINT
                 sub drawPosX,TILE_WIDTH
             .ELSE
                 invoke  SelectObject,hdcMem,hbmKnightMask
                 invoke  StretchBlt,hdcBuffer,drawPosX,drawPosY,TILE_WIDTH,TILE_HEIGHT,
-                                    hdcMem,spriteIndex,0,TILE_WIDTH,TILE_HEIGHT,SRCAND
+                                    hdcMem,spriteOffsetX,0,TILE_WIDTH,TILE_HEIGHT,SRCAND
                 invoke  SelectObject,hdcMem,hbmKnight
                 invoke  StretchBlt,hdcBuffer,drawPosX,drawPosY,TILE_WIDTH,TILE_HEIGHT,
-                                    hdcMem,spriteIndex,0,TILE_WIDTH,TILE_HEIGHT,SRCPAINT
-                ; invoke  MaskBlt,hdcBuffer,drawPosX,drawPosY,TILE_WIDTH,TILE_HEIGHT,
-                ;             hdcMem,0,0,
-                ;             hbmCharMask,0,0,
-                ;             dwRop
+                                    hdcMem,spriteOffsetX,0,TILE_WIDTH,TILE_HEIGHT,SRCPAINT
             .ENDIF
         .ENDIF
 
@@ -305,18 +249,18 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
 
         .IF pushAnimFrame
             dec pushAnimFrame
-            m2m spriteIndex,pushAnimFrame
-            shr spriteIndex,1
-            shl spriteIndex,5
+            m2m spriteOffsetX,pushAnimFrame
+            shr spriteOffsetX,1
+            shl spriteOffsetX,5
             mov eax,96
-            sub eax,spriteIndex
-            mov spriteIndex,eax
+            sub eax,spriteOffsetX
+            mov spriteOffsetX,eax
             invoke  SelectObject,hdcMem,hbmPushAnimMask
             invoke  BitBlt,hdcBuffer,pushAnimPosX,pushAnimPosY,TILE_WIDTH,TILE_HEIGHT,hdcMem,
-                    spriteIndex,0,SRCAND
+                    spriteOffsetX,0,SRCAND
             invoke  SelectObject,hdcMem,hbmPushAnim
             invoke  BitBlt,hdcBuffer,pushAnimPosX,pushAnimPosY,TILE_WIDTH,TILE_HEIGHT,hdcMem,
-                    spriteIndex,0,SRCPAINT
+                    spriteOffsetX,0,SRCPAINT
         .ENDIF
 
     EndTilePaint:
@@ -332,7 +276,7 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             mov     hTitleOld,eax
             invoke DrawText,hdcBuffer,ADDR titleStr,-1,ADDR redrawRange, DT_WORDBREAK or DT_CENTER or DT_VCENTER or DT_SINGLELINE
             invoke SelectObject,hdcBuffer,hTitleOld
-            invoke DeleteDC,eax
+            invoke DeleteDC,eax ; Recover old handle
             invoke DrawText,hdcBuffer,ADDR pressSpaceStr,-1,ADDR pressSpaceRect, DT_WORDBREAK or DT_CENTER or DT_VCENTER or DT_SINGLELINE
         .ELSEIF gameState==GSTATE_TUTORIAL
             invoke  CreateFont,18,0,0,0,FW_BOLD,0,0,0,
@@ -365,17 +309,17 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             mov  eax,currentLevel
             mov  currentLevelStr[LENGTHOF currentMovesStr],al
             add  currentLevelStr[LENGTHOF currentMovesStr],30h
-            ; Draw move left text
+            ; Draw level and move left text
             invoke  TextOut,hdcBuffer,0,TOTAL_ROWS*TILE_HEIGHT,ADDR currentLevelStr,LENGTHOF currentLevelStr-1
             invoke  TextOut,hdcBuffer,TOTAL_COLS*TILE_WIDTH/2,TOTAL_ROWS*TILE_HEIGHT,ADDR currentMovesStr,LENGTHOF currentMovesStr-1
         .ELSEIF gameState==GSTATE_WIN
-            invoke DrawText,hdcBuffer,ADDR endingText,-1,ADDR redrawRange, DT_WORDBREAK or DT_CENTER or DT_VCENTER or DT_SINGLELINE
+            invoke DrawText,hdcBuffer,ADDR endingStr,-1,ADDR pressSpaceRect, DT_WORDBREAK or DT_CENTER ;or DT_VCENTER or DT_SINGLELINE
         .ENDIF
 
         ; FPS
-        ; invoke RanderFPS,hdcBuffer
+        ; invoke RenderFPS,hdcBuffer
 
-        ; Buffer to window
+        ; Buffer to window (Double buffering)
         invoke  BitBlt,hdc,0,0,WINDOW_WIDTH,WINDOW_HEIGHT,hdcBuffer,
                     0,0,SRCCOPY
 
@@ -392,34 +336,26 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
         mov esi,cCharPosY
         shl esi,3
         add esi,cCharPosX
-        ; esi for index param
-        .IF wParam==52h
+        ; esi for Index param
+        .IF wParam==52h ; R
             invoke ResetGame,currentLevel
-            mov gameState,GSTATE_TRANS
-            push frameCounter
-            pop transition_start
-        .ELSEIF wParam==31h
+            call StartLevelTrans
+        .ELSEIF wParam==31h ; 1
             invoke ResetGame,1
-            mov gameState,GSTATE_TRANS
-            push frameCounter
-            pop transition_start
-        .ELSEIF wParam==32h
+            call StartLevelTrans
+        .ELSEIF wParam==32h ; 2
             invoke ResetGame,2
-            mov gameState,GSTATE_TRANS
-            push frameCounter
-            pop transition_start
-        .ELSEIF wParam==33h
+            call StartLevelTrans
+        .ELSEIF wParam==33h ; 3
             invoke ResetGame,3
-            mov gameState,GSTATE_TRANS
-            push frameCounter
-            pop transition_start
+            call StartLevelTrans
+        .ELSEIF wParam==4dh ; M
+            invoke PauseBGM
         .ELSEIF wParam==VK_SPACE && gameState==GSTATE_TITLE
             mov gameState,GSTATE_TUTORIAL
         .ELSEIF wParam==VK_SPACE && gameState==GSTATE_TUTORIAL
-            mov gameState,GSTATE_TRANS
-            push frameCounter
-            pop transition_start
-        .ELSEIF wParam==VK_SPACE && gameState==GSTATE_WIN
+            call StartLevelTrans
+        .ELSEIF (wParam==VK_SPACE && gameState==GSTATE_WIN) || wParam==VK_ESCAPE
             invoke PostQuitMessage,NULL
             xor eax,eax
             ret
@@ -429,23 +365,21 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
             ret
         .ELSEIF gameState==GSTATE_LEVEL
             .IF wParam==VK_UP
-                invoke ProcessMoveLogic,-8,0,-1
+                invoke ProcessMoveLogic,esi,0,-1
             .ELSEIF wParam==VK_DOWN
-                invoke ProcessMoveLogic,8,0,1
+                invoke ProcessMoveLogic,esi,0,1
             .ELSEIF wParam==VK_LEFT
                 mov charFacing,1
-                invoke ProcessMoveLogic,-1,-1,0
+                invoke ProcessMoveLogic,esi,-1,0
             .ELSEIF wParam==VK_RIGHT
                 mov charFacing,0
-                invoke ProcessMoveLogic,1,1,0
+                invoke ProcessMoveLogic,esi,1,0
             .ENDIF
         .ENDIF
         ; If both parameters are NULL, the entire client area is added to the update region.
         ; invoke RedrawWindow,hWndd, 0, 0, RDW_INVALIDATE or RDW_UPDATENOW
-
-    .ELSEIF uMsg==WM_TIMER
-
     .ELSEIF uMsg==WM_COMMAND
+    ; For menu, accelerator...etc. Pretty much useless in this project. 
         mov eax,wParam
         .IF lParam==0
             ; Process messages, else...
@@ -526,9 +460,13 @@ LoadBitmapHandlers PROC
     ret
 LoadBitmapHandlers ENDP
 
-ProcessMoveLogic PROC USES eax,
-    indexOffset:DWORD, xOffset:SDWORD, yOffset:SDWORD
-    mov eax,indexOffset
+ProcessMoveLogic PROC USES eax esi,
+    currentIndex:DWORD ,xOffset:SDWORD, yOffset:SDWORD
+
+    m2m eax,yOffset
+    shl eax,3
+    add eax,xOffset
+    mov esi,currentIndex
     add esi,eax
     .IF bSokobanStates[esi] == 0 || bSokobanStates[esi] == 3
         ; Knight movement
@@ -536,6 +474,9 @@ ProcessMoveLogic PROC USES eax,
         add cCharPosX,eax
         mov eax,yOffset
         add cCharPosY,eax
+    .ELSEIF bSokobanStates[esi] == 1
+        ; PUNCH THE WALLLLLL!!!!!!!!
+        invoke RenderPushAnim,xOffset,yOffset
     .ELSEIF bSokobanStates[esi] == 2
         ; Barrel
         .IF bSokobanStates[esi+eax] == 0; If movable
@@ -545,7 +486,7 @@ ProcessMoveLogic PROC USES eax,
             mov bSokobanStates[esi],6
             mov bSokobanStates[esi+eax],2
         .ENDIF
-        invoke PushAnimation,xOffset,yOffset
+        invoke RenderPushAnim,xOffset,yOffset
     .ELSEIF bSokobanStates[esi] == 4
         ; Move or Kill Enemy
         .IF bSokobanStates[esi+eax] == 0
@@ -554,7 +495,7 @@ ProcessMoveLogic PROC USES eax,
         .ELSEIF bSokobanStates[esi+eax] == 1 || bSokobanStates[esi+eax] == 2 || bSokobanStates[esi+eax] == 3
             mov bSokobanStates[esi],0
         .ENDIF
-        invoke PushAnimation,xOffset,yOffset
+        invoke RenderPushAnim,xOffset,yOffset
     .ELSEIF bSokobanStates[esi] == 6
         ; Spike with Barrel
         .IF bSokobanStates[esi+eax] == 0 ; If movable
@@ -565,7 +506,7 @@ ProcessMoveLogic PROC USES eax,
             mov bSokobanStates[esi],3
             mov bSokobanStates[esi+eax],6
         .ENDIF
-        invoke PushAnimation,xOffset,yOffset
+        invoke RenderPushAnim,xOffset,yOffset
     .ELSEIF bSokobanStates[esi] == 7
         ; Key
         mov eax,xOffset
@@ -574,35 +515,41 @@ ProcessMoveLogic PROC USES eax,
         add cCharPosY,eax
         mov hasKeyState,1
         mov bSokobanStates[esi],0
-        invoke PlaySound,ADDR getKeyFilePath,NULL,SND_ASYNC or SND_FILENAME
+        invoke PlaySound,ADDR getKeyFilePath,NULL,SND_ASYNC or SND_FILENAME or SND_NODEFAULT
     .ELSEIF bSokobanStates[esi] == 8
         ; Door
         .IF hasKeyState==1
             mov bSokobanStates[esi],0
-            invoke PlaySound,ADDR getKeyFilePath,NULL,SND_ASYNC or SND_FILENAME
+            invoke PlaySound,ADDR getKeyFilePath,NULL,SND_ASYNC or SND_FILENAME or SND_NODEFAULT
         .ENDIF
     .ENDIF
+
+    ; Caculate the moves
     dec currentMoves
-    ; take one move if on spike when end
+    ; Take one extra move if on spike when end
     .IF bSokobanStates[esi] == 3
         ;Spike
         dec currentMoves
-        invoke PlaySound,ADDR onSpikeFilePath,NULL,SND_ASYNC or SND_FILENAME
+        invoke PlaySound,ADDR onSpikeFilePath,NULL,SND_ASYNC or SND_FILENAME or SND_NODEFAULT
     .ENDIF
+    ; Check moves left
     .IF currentMoves <= 0
         invoke ResetGame,currentLevel
         mov gameState,GSTATE_TRANS
         push frameCounter
         pop transition_start
     .ENDIF
+
+    ; Go to next level?
     .IF bSokobanStates[esi] == 5
-        ; Next Level
+        ; Stair
         inc currentLevel
         mov gameState,GSTATE_TRANS
         push frameCounter
         pop transition_start
         invoke ResetGame,currentLevel
     .ENDIF
+
     ret
 ProcessMoveLogic ENDP
 
@@ -647,38 +594,48 @@ CopyLoop:
 ResetGame ENDP
 
 PlayBGM PROC
-	LOCAL mciOpenParms:MCI_OPEN_PARMS, mciPlayParms:MCI_PLAY_PARMS
+    LOCAL mciOpenParms:MCI_OPEN_PARMS, mciPlayParms:MCI_PLAY_PARMS
 
-	mov eax, hWnd
-	mov mciPlayParms.dwCallback, eax
+    m2m mciPlayParms.dwCallback, hWnd
+    m2m mciOpenParms.lpstrDeviceType,OFFSET playerType
+    m2m mciOpenParms.lpstrElementName,OFFSET bgmPath
+    m2m mciOpenParms.lpstrAlias,OFFSET playerAlias
+    invoke mciSendCommand, 0, MCI_OPEN,MCI_OPEN_TYPE or MCI_OPEN_ELEMENT, ADDR mciOpenParms
+ 
+    m2m playerId, mciOpenParms.wDeviceID
+    invoke mciSendCommand, playerId, MCI_PLAY, MCI_NOTIFY, ADDR mciPlayParms
 
-	mov eax, OFFSET playerType
-	mov mciOpenParms.lpstrDeviceType, eax
-	mov eax, OFFSET filePath
-	mov mciOpenParms.lpstrElementName, eax
-	mov eax, OFFSET playerAlias
-	mov mciOpenParms.lpstrAlias, eax
-
- 	invoke mciSendCommand, 0, MCI_OPEN,MCI_OPEN_TYPE or MCI_OPEN_ELEMENT, ADDR mciOpenParms
-
-	mov eax, mciOpenParms.wDeviceID
-	mov playerId, eax
-
-	invoke mciSendCommand, playerId, MCI_PLAY, MCI_NOTIFY, ADDR mciPlayParms
-
-	ret
+    ret
 PlayBGM ENDP
 
-RanderFPS PROC USES eax,
+PauseBGM PROC USES eax
+    LOCAL mciPlayParms:MCI_PLAY_PARMS, mciStatusParms:MCI_STATUS_PARMS
+
+    mov mciStatusParms.dwItem,MCI_STATUS_MODE
+    invoke mciSendCommand, playerId, MCI_STATUS, MCI_NOTIFY or MCI_STATUS_ITEM, ADDR mciStatusParms
+    .IF eax!=0
+        ret
+    .ENDIF
+    m2m mciPlayParms.dwCallback, hWnd
+    .IF mciStatusParms.dwReturn == MCI_MODE_PLAY
+        invoke mciSendCommand, playerId, MCI_PAUSE, MCI_NOTIFY, ADDR mciPlayParms
+    .ELSE
+        invoke mciSendCommand, playerId, MCI_PLAY, MCI_NOTIFY, ADDR mciPlayParms
+    .ENDIF
+
+    ret
+PauseBGM ENDP
+
+RenderFPS PROC USES eax,
     hdcBuf:HDC
     mov eax,frameCounter
-    mov FPSText[0],ah
-    mov FPSText[1],al
-    invoke  TextOut,hdcBuf,0,0,ADDR FPSText,2
+    mov fpsStr[0],ah
+    mov fpsStr[1],al
+    invoke  TextOut,hdcBuf,0,0,ADDR fpsStr,2
     ret
-RanderFPS ENDP
+RenderFPS ENDP
 
-PushAnimation PROC,
+RenderPushAnim PROC USES eax,
     xPushOffset:SDWORD, yPushOffset:SDWORD
     ; eight frame
     mov pushAnimFrame,8
@@ -692,8 +649,39 @@ PushAnimation PROC,
     add pushAnimPosY,eax
     shl pushAnimPosY,5
     ; PlaySound size limit 100K
-    invoke PlaySound,ADDR hitSoundFilePath,NULL,SND_ASYNC or SND_FILENAME
+    invoke PlaySound,ADDR hitSoundFilePath,NULL,SND_ASYNC or SND_FILENAME or SND_NODEFAULT
     ret
-PushAnimation ENDP
+RenderPushAnim ENDP
+
+InitWndPos PROC USES eax
+    ; Initial window position
+    ; Note: GetDeviceCaps hdcPrimaryMonitor, HORZRES/VERTRES also work.
+    invoke GetSystemMetrics,SM_CXSCREEN
+    shr eax,1
+    sub eax,WINDOW_WIDTH/2
+    mov wndX,eax
+    invoke GetSystemMetrics,SM_CYSCREEN
+    shr eax,1
+    sub eax,WINDOW_HEIGHT/2
+    mov wndY,eax
+    ret
+InitWndPos ENDP
+
+SetAdjustedWndRect PROC USES eax
+    ; Create the main window with an extended window style
+    invoke  AdjustWindowRectEx,ADDR wndRect,WS_OVERLAPPED or WS_CAPTION or WS_SYSMENU,0,0
+    mov ebx,wndRect.left
+    sub wndRect.right,ebx
+    mov ebx,wndRect.top
+    sub wndRect.bottom,ebx
+    ret
+SetAdjustedWndRect ENDP
+
+StartLevelTrans PROC
+    mov gameState,GSTATE_TRANS
+    push frameCounter
+    pop transition_start
+    ret
+StartLevelTrans ENDP
 
 END Main
