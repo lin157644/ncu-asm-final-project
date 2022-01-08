@@ -4,7 +4,7 @@
 This is the final project of Assembly Language and System Programming course of National Central University. It is an replica of Helltaker by vanripper in x86 assembly. All game design and concepts belongs to the original creator.
 
 ### Run the game
-Clone the repository to any location in your computer. Make sure the .wav sound effect files are in the same directory of the executable. Optional background music `bgmusic.mp3` can be place in the same directory. The game will play it automatically.
+Clone the repository to any location in your computer. ~~Make sure the .wav sound effect files are in the same directory of the executable.~~ Optional background music `bgmusic.mp3` can be place in the same directory. The game will play it automatically.
 ### Build
 MASM32 SDK was used to develope this project.  
 1. Open `Sokoban.inc` and change the include path `include \masm32\INCLUDE\XXX.inc` and `include \masm32\INCLUDE\XXX.lib` to your masm inc and lib path.  
