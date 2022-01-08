@@ -2,7 +2,7 @@
 .model  flat,stdcall
 option casemap: none
 
-INCLUDE Sokoban.inc
+INCLUDE DungeonTaker.inc
 
 .code
 Main PROC
@@ -138,7 +138,7 @@ WndProc PROC hWndd:HWND, uMsg:UINT, wParam:WPARAM, lParam:LPARAM
     DrawCol:
         push ecx
 
-        mov al,[bSokobanStates+esi*8+edi]
+        mov al,[bTileStates+esi*8+edi]
 
         .IF al == 0
             ; Draw Floor
@@ -468,58 +468,58 @@ ProcessMoveLogic PROC USES eax esi,
     add eax,xOffset
     mov esi,currentIndex
     add esi,eax
-    .IF bSokobanStates[esi] == 0 || bSokobanStates[esi] == 3
+    .IF bTileStates[esi] == 0 || bTileStates[esi] == 3
         ; Knight movement
         mov eax,xOffset
         add cCharPosX,eax
         mov eax,yOffset
         add cCharPosY,eax
-    .ELSEIF bSokobanStates[esi] == 1
+    .ELSEIF bTileStates[esi] == 1
         ; PUNCH THE WALLLLLL!!!!!!!!
         invoke RenderPushAnim,xOffset,yOffset
-    .ELSEIF bSokobanStates[esi] == 2
+    .ELSEIF bTileStates[esi] == 2
         ; Barrel
-        .IF bSokobanStates[esi+eax] == 0; If movable
-            mov bSokobanStates[esi],0
-            mov bSokobanStates[esi+eax],2
-        .ELSEIF  bSokobanStates[esi+eax] == 3
-            mov bSokobanStates[esi],6
-            mov bSokobanStates[esi+eax],2
+        .IF bTileStates[esi+eax] == 0; If movable
+            mov bTileStates[esi],0
+            mov bTileStates[esi+eax],2
+        .ELSEIF  bTileStates[esi+eax] == 3
+            mov bTileStates[esi],6
+            mov bTileStates[esi+eax],2
         .ENDIF
         invoke RenderPushAnim,xOffset,yOffset
-    .ELSEIF bSokobanStates[esi] == 4
+    .ELSEIF bTileStates[esi] == 4
         ; Move or Kill Enemy
-        .IF bSokobanStates[esi+eax] == 0
-            mov bSokobanStates[esi],0
-            mov bSokobanStates[esi+eax],4
-        .ELSEIF bSokobanStates[esi+eax] == 1 || bSokobanStates[esi+eax] == 2 || bSokobanStates[esi+eax] == 3
-            mov bSokobanStates[esi],0
+        .IF bTileStates[esi+eax] == 0
+            mov bTileStates[esi],0
+            mov bTileStates[esi+eax],4
+        .ELSEIF bTileStates[esi+eax] == 1 || bTileStates[esi+eax] == 2 || bTileStates[esi+eax] == 3
+            mov bTileStates[esi],0
         .ENDIF
         invoke RenderPushAnim,xOffset,yOffset
-    .ELSEIF bSokobanStates[esi] == 6
+    .ELSEIF bTileStates[esi] == 6
         ; Spike with Barrel
-        .IF bSokobanStates[esi+eax] == 0 ; If movable
-            mov bSokobanStates[esi],3
-            mov bSokobanStates[esi+eax],2
+        .IF bTileStates[esi+eax] == 0 ; If movable
+            mov bTileStates[esi],3
+            mov bTileStates[esi+eax],2
         .ENDIF
-        .IF bSokobanStates[esi+eax] == 3 ; If movable
-            mov bSokobanStates[esi],3
-            mov bSokobanStates[esi+eax],6
+        .IF bTileStates[esi+eax] == 3 ; If movable
+            mov bTileStates[esi],3
+            mov bTileStates[esi+eax],6
         .ENDIF
         invoke RenderPushAnim,xOffset,yOffset
-    .ELSEIF bSokobanStates[esi] == 7
+    .ELSEIF bTileStates[esi] == 7
         ; Key
         mov eax,xOffset
         add cCharPosX,eax
         mov eax,yOffset
         add cCharPosY,eax
         mov hasKeyState,1
-        mov bSokobanStates[esi],0
+        mov bTileStates[esi],0
         invoke PlaySound,IDR_WAVE_GET_KEY,NULL,SND_ASYNC or SND_RESOURCE or SND_NODEFAULT
-    .ELSEIF bSokobanStates[esi] == 8
+    .ELSEIF bTileStates[esi] == 8
         ; Door
         .IF hasKeyState==1
-            mov bSokobanStates[esi],0
+            mov bTileStates[esi],0
             invoke PlaySound,IDR_WAVE_GET_KEY,NULL,SND_ASYNC or SND_RESOURCE or SND_NODEFAULT
         .ENDIF
     .ENDIF
@@ -527,7 +527,7 @@ ProcessMoveLogic PROC USES eax esi,
     ; Caculate the moves
     dec currentMoves
     ; Take one extra move if on spike when end
-    .IF bSokobanStates[esi] == 3
+    .IF bTileStates[esi] == 3
         ;Spike
         dec currentMoves
         invoke PlaySound,IDR_WAVE_ON_SPIKE,NULL,SND_ASYNC or SND_RESOURCE or SND_NODEFAULT
@@ -541,7 +541,7 @@ ProcessMoveLogic PROC USES eax esi,
     .ENDIF
 
     ; Go to next level?
-    .IF bSokobanStates[esi] == 5
+    .IF bTileStates[esi] == 5
         ; Stair
         inc currentLevel
         mov gameState,GSTATE_TRANS
@@ -585,7 +585,7 @@ ResetGame PROC USES eax ecx esi,
     xor ecx,ecx
 CopyLoop:
     mov al,BYTE PTR [esi+ecx]
-    mov bSokobanStates[ecx],al
+    mov bTileStates[ecx],al
     inc ecx
     cmp ecx,TOTAL_COLS*TOTAL_ROWS
     jnz CopyLoop

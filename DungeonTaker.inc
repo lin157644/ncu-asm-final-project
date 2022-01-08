@@ -103,7 +103,10 @@ currentLevelStr BYTE    "current level: 0",0
 transLevelStr   BYTE    "Level 0",0
 titleStr        BYTE    "DungeonTaker",0
 pressSpaceStr   BYTE    "Press space to start",0
-tutorialStr     BYTE    "Use arrow keys to move",0dh,0ah,"ESC to exit",0dh,0ah,"R to restart",0dh,0ah,"M to mute",0
+tutorialStr     BYTE    "Use arrow keys to move",0dh,0ah
+                BYTE    "ESC to exit",0dh,0ah
+                BYTE    "R to restart",0dh,0ah
+                BYTE    "M to mute BGM",0
 endingStr       BYTE    "You Win!",0dh,0ah
                 BYTE    "Thank you for playing.",0dh,0ah
                 BYTE    "Press ESC to exit.",0
@@ -122,7 +125,7 @@ pushAnimPosY    DWORD   ?
 ; Tile state 0:floor 1:wall 2:box 3:spike 4:enemy 5:stair 6:box&spike 7:key 8:door
 gameState       BYTE    GSTATE_TITLE
 hasKeyState     BYTE    ?
-bSokobanStates  BYTE    TOTAL_COLS*TOTAL_ROWS dup(?)
+bTileStates  BYTE    TOTAL_COLS*TOTAL_ROWS dup(?)
 bLevelStates1   BYTE 1,1,1,1,1,1,1,1
                 BYTE 1,1,1,1,1,0,0,1
                 BYTE 1,1,0,0,4,0,3,1
