@@ -565,8 +565,8 @@ ResetGame PROC USES eax ecx esi,
         pop currentMoves
         mov esi,OFFSET bLevelStates1
     .ELSEIF level == 2
-        mov cCharPosX,2
-        mov cCharPosY,5
+        mov cCharPosX,1
+        mov cCharPosY,6
         push [maxMoves+2*TYPE SDWORD] ; 8
         pop currentMoves
         mov esi,OFFSET bLevelStates2

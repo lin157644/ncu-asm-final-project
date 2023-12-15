@@ -90,7 +90,7 @@ cCharPosX       DWORD   ?    ; in tiles
 cCharPosY       DWORD   ?
 CharOffsetX     SDWORD  ?   ; in pixel
 CharOffsetY     SDWORD  ?
-maxMoves        SDWORD  0,23,24,28
+maxMoves        SDWORD  0,23,26,28
 currentMoves    SDWORD  ?
 currentLevel    DWORD   1
 
@@ -141,14 +141,14 @@ bLevelStates2   BYTE 1,1,1,1,1,1,1,1
                 BYTE 1,3,1,1,6,6,2,1
                 BYTE 1,0,0,1,0,3,0,1
                 BYTE 1,3,0,1,0,4,0,1
-                BYTE 1,1,1,1,5,0,4,1
+                BYTE 1,0,0,1,5,0,4,1
                 BYTE 1,1,1,1,1,1,1,1
 
 bLevelStates3   BYTE 1,1,1,1,1,1,5,1
-                BYTE 1,1,1,1,1,1,8,1
-                BYTE 1,1,0,3,3,0,0,1
+                BYTE 1,7,6,1,1,1,8,1
+                BYTE 1,6,0,3,3,0,0,1
                 BYTE 1,1,3,1,3,1,0,1
-                BYTE 1,1,0,0,4,3,3,1
+                BYTE 1,4,0,0,4,3,3,1
                 BYTE 1,1,3,1,3,1,0,1
                 BYTE 1,7,0,0,0,4,0,1
                 BYTE 1,1,1,1,1,1,1,1
